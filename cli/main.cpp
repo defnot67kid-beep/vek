@@ -5,6 +5,7 @@
 #include <array>
 #include <cctype>
 #include <cstdint>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -146,6 +147,15 @@ bool pathEnvironmentContains(const fs::path& home) {
     }
     return false;
 }
+
+
+void maybeLaunchAutoUpdate(const fs::path& home) {
+    // VEK 2.5.4 safety policy: AUTO performs automatic update checks/notifications
+    // only. It never launches a hidden installer or changes files in the
+    // background. Updates are performed through the visible installer UI.
+    (void)home;
+}
+
 
 static int runFile(const std::string& path) {
     VekScriptEngine vm;
@@ -459,8 +469,6 @@ void usage() {
         << "  vek --version              Show version\n"
         << "  vek --install              Open the Windows graphical installer\n"
         << "  vek update                 Open installer for update/repair\n"
-        << "  vek update-policy auto     Enable automatic update mode\n"
-        << "  vek update-policy manual   Use manual update mode\n"
         << "  vek info                   Show portable install information\n"
         << "  vek home                   Print detected VEK home\n"
         << "  vek doctor                 Check installation/PATH\n"
@@ -476,26 +484,12 @@ void usage() {
 int main(int argc, char** argv) {
     const fs::path exe = executablePath(argc > 0 ? argv[0] : "vek");
     const fs::path home = discoverVekHome(exe);
+    maybeLaunchAutoUpdate(home);
 
     if (argc < 2) { usage(); return 0; }
     const std::string cmd = argv[1];
     if (cmd == "version" || cmd == "--version" || cmd == "-v") { std::cout << "VEK " << VEK_VERSION_STRING << "\n"; return 0; }
     if (cmd == "install" || cmd == "--install" || cmd == "update" || cmd == "--update") return launchGuiInstaller(home);
-    if (cmd == "update-policy") {
-        if (argc < 3) { std::cout << readUpdatePolicy(home) << "\n"; return 0; }
-        std::string mode = argv[2];
-        std::transform(mode.begin(), mode.end(), mode.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
-        if (mode != "auto" && mode != "manual") {
-            std::cerr << "VEK update-policy must be 'auto' or 'manual'.\n";
-            return 2;
-        }
-        if (!writeUpdatePolicy(home, mode)) {
-            std::cerr << "VEK could not write UPDATE_POLICY in " << home.string() << "\n";
-            return 3;
-        }
-        std::cout << "VEK update policy: " << mode << "\n";
-        return 0;
-    }
     if (cmd == "info") { printInfo(exe, home); return 0; }
     if (cmd == "home") { std::cout << home.string() << "\n"; return 0; }
     if (cmd == "doctor") return doctor(exe, home);

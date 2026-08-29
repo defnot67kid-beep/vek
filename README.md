@@ -8,6 +8,27 @@ The release workflow builds the responsive native Windows installer from
 Win32 UI responsive while Git runs in the background, and adds `C:\vek` to the
 current user's PATH.
 
+
+
+## VEK 2.5.4 — safer Windows installer architecture
+
+VEK 2.5.4 redesigns the Windows installer to reduce antivirus false-positive risk. The installer no longer performs silent/background self-updates, no longer launches a hidden copy of itself, and no longer replaces its own executable. AUTO mode performs version checks and notifications only; actual downloads/updates require a visible user click. For the safest install flow, extract `VekInstaller.zip` directly to `C:\vek` and run `VekInstaller.exe` from there. Git operations are still executed directly and their progress is captured inside the GUI so no console popups are required.
+
+## VEK 2.5.3 — Zero-popup Windows installer
+
+VEK 2.5.3 fixes visible console flashes from Git operations started by the graphical Windows installer. The GUI now launches `git.exe` directly with standard Windows no-console child-process flags while continuing to capture Git progress for the 3D download bar. No `cmd.exe`, PowerShell, shell scripts, obfuscation, Defender exclusions, or antivirus bypasses are used.
+
+The background updater uses the same no-console policy, while `vek.exe` remains a normal console program because it is the VEK command-line interface.
+
+## VEK 2.5.2 — Fullscreen installer and background auto-update
+
+VEK 2.5.2 refines the Windows installer into a true fullscreen experience. The 3D VEK logo is smaller and static, the verbose console-style status panel is removed, and the extruded progress bar is the primary download indicator.
+
+Automatic update mode now performs update checks and starts updates through the GUI installer in background mode, while Manual mode waits for an explicit DOWNLOAD action. The installer continues to use the official GitHub repository at `https://github.com/defnot67kid-beep/vek.git`.
+
+The interactive UI runtime now also exposes responsive fullscreen installer layout calculations and background-update policy helpers for reuse by native VEK hosts.
+
+
 ## VEK 2.3 — Secondary-Motion Physics
 
 VEK 2.3 adds a renderer-independent spring-chain physics solver designed for
@@ -23,7 +44,7 @@ See `docs/PHYSICS_SYSTEM.md` and `examples/hair_physics.vek`.
 
 VEK started as the secure gameplay scripting language for the Custom Vehicle Game, but the runtime is designed to be usable by other applications as well. It keeps one canonical language/runtime implementation and exposes safe host APIs instead of requiring every host language to reimplement VEK.
 
-Current version: **2.2.0**
+Current version: **2.5.4**
 
 ## What VEK is designed for
 

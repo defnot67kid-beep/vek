@@ -59,6 +59,37 @@ ProjectedPoint UiOrbit3D::Project(UiVec3 p,
     return {{screenCenter.x + r.x * scale, screenCenter.y - r.y * scale}, r.z};
 }
 
+
+void ProgressBar3DModel::Reset(float value) {
+    const float v = std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.0f;
+    displayed_ = v;
+    target_ = v;
+}
+
+void ProgressBar3DModel::SetTarget(float normalizedProgress) {
+    target_ = std::isfinite(normalizedProgress)
+        ? std::clamp(normalizedProgress, 0.0f, 1.0f)
+        : target_;
+}
+
+void ProgressBar3DModel::Step(float dtSeconds, float responsePerSecond) {
+    const float dt = ClampDt(dtSeconds, 0.1f);
+    if (dt <= 0.0f) return;
+    const float response = std::max(0.0f, std::isfinite(responsePerSecond) ? responsePerSecond : 0.0f);
+    const float alpha = 1.0f - std::exp(-response * dt);
+    displayed_ += (target_ - displayed_) * alpha;
+    if (std::abs(target_ - displayed_) < 0.0005f) displayed_ = target_;
+    displayed_ = std::clamp(displayed_, 0.0f, 1.0f);
+}
+
+int ProgressBar3DModel::Percent() const {
+    return static_cast<int>(std::lround(std::clamp(displayed_, 0.0f, 1.0f) * 100.0f));
+}
+
+float ProgressBar3DModel::FilledWidth(float totalWidth) const {
+    return std::max(0.0f, totalWidth) * std::clamp(displayed_, 0.0f, 1.0f);
+}
+
 void RunnerMiniGame::Configure(const RunnerSettings& settings) {
     settings_ = settings;
     settings_.playerSize = std::max(4.0f, settings_.playerSize);
@@ -188,6 +219,36 @@ bool IsVersionOutdated(const std::string& installed, const std::string& latest) 
     const auto a = ParseSemanticVersion(installed);
     const auto b = ParseSemanticVersion(latest);
     return a.valid && b.valid && CompareSemanticVersion(a, b) < 0;
+}
+
+
+InstallerViewportLayout ComputeFullscreenInstallerLayout(float width, float height) {
+    InstallerViewportLayout out{};
+    out.width = std::clamp(std::isfinite(width) ? width : 1280.0f, 320.0f, 16384.0f);
+    out.height = std::clamp(std::isfinite(height) ? height : 720.0f, 480.0f, 16384.0f);
+    out.logoCenter = {out.width * 0.5f, out.height * 0.17f};
+    out.logoFocalLength = std::min(out.width * 0.42f, out.height * 0.62f);
+    out.downloadRowY = out.height * 0.34f;
+    out.policyRowY = out.height * 0.44f;
+    out.progressBarY = out.height * 0.56f;
+    out.runnerTopY = out.height * 0.66f;
+    out.runnerGroundY = out.height * 0.91f;
+    return out;
+}
+
+bool ShouldNotifyUpdate(UpdatePolicy policy,
+                        const std::string& installed,
+                        const std::string& latest) {
+    return policy == UpdatePolicy::Automatic && IsVersionOutdated(installed, latest);
+}
+
+bool ShouldBackgroundUpdate(UpdatePolicy policy,
+                            const std::string& installed,
+                            const std::string& latest) {
+    (void)policy;
+    (void)installed;
+    (void)latest;
+    return false;
 }
 
 const char* UpdatePolicyName(UpdatePolicy policy) {

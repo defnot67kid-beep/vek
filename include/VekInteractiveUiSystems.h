@@ -47,6 +47,26 @@ private:
     float pitchVelocity_ = 0.18f;
 };
 
+
+// Renderer-independent progress model used by VEK installer/loading scenes.
+// Hosts can render this value as a 2D or extruded 3D progress bar.
+class ProgressBar3DModel {
+public:
+    void Reset(float value = 0.0f);
+    void SetTarget(float normalizedProgress);
+    void Step(float dtSeconds, float responsePerSecond = 7.5f);
+
+    float Displayed() const { return displayed_; }
+    float Target() const { return target_; }
+    int Percent() const;
+    bool Complete() const { return displayed_ >= 0.999f && target_ >= 0.999f; }
+    float FilledWidth(float totalWidth) const;
+
+private:
+    float displayed_ = 0.0f;
+    float target_ = 0.0f;
+};
+
 enum class RunnerObstacleShape : std::uint8_t {
     Spike,
     Block,
@@ -119,5 +139,32 @@ SemanticVersion ParseSemanticVersion(const std::string& text);
 int CompareSemanticVersion(const SemanticVersion& lhs, const SemanticVersion& rhs);
 bool IsVersionOutdated(const std::string& installed, const std::string& latest);
 const char* UpdatePolicyName(UpdatePolicy policy);
+
+struct InstallerViewportLayout {
+    float width = 1280.0f;
+    float height = 720.0f;
+    UiVec2 logoCenter{640.0f, 122.0f};
+    float logoFocalLength = 520.0f;
+    float downloadRowY = 245.0f;
+    float policyRowY = 317.0f;
+    float progressBarY = 403.0f;
+    float runnerTopY = 475.0f;
+    float runnerGroundY = 655.0f;
+};
+
+// Responsive fullscreen installer geometry shared by native VEK hosts.
+InstallerViewportLayout ComputeFullscreenInstallerLayout(float width, float height);
+
+// Automatic mode performs automatic version checks/notifications only.
+// Downloads and file changes still require explicit user action.
+bool ShouldNotifyUpdate(UpdatePolicy policy,
+                        const std::string& installed,
+                        const std::string& latest);
+
+// Deprecated safety shim. VEK 2.5.4 never recommends a silent background
+// installation; this function always returns false.
+bool ShouldBackgroundUpdate(UpdatePolicy policy,
+                            const std::string& installed,
+                            const std::string& latest);
 
 } // namespace vek

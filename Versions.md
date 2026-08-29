@@ -1,3 +1,51 @@
+# VEK Versions
+
+## VEK 2.5.4
+
+- Redesigned Windows installer to reduce antivirus false-positive risk.
+- Removed silent/background installation and self-updating.
+- Removed installer self-copy/self-replacement behavior.
+- AUTO mode now checks/notifies automatically; downloads require an explicit visible click.
+- Installer package is intended to be extracted directly to `C:\vek`.
+- Git progress remains captured in the GUI without visible console popups.
+
+
+## VEK 2.5.3
+
+### Zero-popup Windows installer
+
+- Fixed visible console windows appearing during GitHub version checks, clone, fetch, reset, and update operations.
+- Git is invoked directly as a child process; the installer does not invoke `cmd.exe` or PowerShell.
+- Standard Windows `CREATE_NO_WINDOW` / hidden-window process settings are applied to GUI-owned Git child processes.
+- Git stdout/stderr remain captured so download percentage still drives the 3D progress bar.
+- Background automatic updates remain silent.
+- `VekInstaller.exe` remains a Windows GUI subsystem executable; `vek.exe` remains a console CLI executable.
+- No obfuscation, packing, Defender exclusions, or antivirus-bypass behavior was added.
+
+---
+
+# VEK 2.5.2
+
+- True borderless fullscreen Windows installer.
+- Smaller static 3D VEK logo; continuous logo rotation removed.
+- Verbose console-like installer status/source text removed from the visible UI.
+- 3D progress bar is the main download/update progress indicator.
+- Geometry-Dash-style runner remains playable with Space.
+- Automatic mode can update silently in background mode.
+- Manual mode waits for a DOWNLOAD click.
+- Update-policy and repository-management commands removed from the public CLI help.
+- Added responsive fullscreen installer layout primitives to `VekInteractiveUiSystems`.
+- Added `ShouldBackgroundUpdate()` policy helper.
+
+# VEK 2.5.1
+
+- Expanded the rotating VEK wireframe to span the full installer presentation area.
+- Replaced text hash progress with a real extruded 3D loading bar.
+- Git clone/fetch percentage now drives download progress during the GitHub synchronization stage.
+- Added `ProgressBar3DModel` to the renderer-independent interactive UI runtime.
+- Removed decorative `//` separators from visible installer labels and status messages.
+- Kept the playable Space-to-jump runner and automatic/manual update controls.
+
 # VEK 2.3.0
 
 - Added `VEK::Runtime`-compatible secondary-motion physics.

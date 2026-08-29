@@ -15,6 +15,16 @@ int main() {
     assert(std::isfinite(projected.screen.x));
     assert(std::isfinite(projected.screen.y));
 
+    ProgressBar3DModel progress;
+    progress.Reset();
+    progress.SetTarget(0.75f);
+    for (int i = 0; i < 120; ++i) progress.Step(1.0f / 60.0f);
+    assert(progress.Percent() >= 74 && progress.Percent() <= 75);
+    assert(progress.FilledWidth(400.0f) > 295.0f);
+    progress.SetTarget(1.0f);
+    for (int i = 0; i < 180; ++i) progress.Step(1.0f / 60.0f);
+    assert(progress.Complete());
+
     RunnerMiniGame game;
     RunnerSettings settings;
     settings.groundY = 300.0f;
@@ -32,6 +42,13 @@ int main() {
     assert(IsVersionOutdated("2.4.0", "v2.5.0"));
     assert(!IsVersionOutdated("2.5.0", "v2.5.0"));
     assert(std::string(UpdatePolicyName(UpdatePolicy::Automatic)) == "auto");
+    assert(ShouldNotifyUpdate(UpdatePolicy::Automatic, "2.5.1", "2.5.2"));
+    assert(!ShouldNotifyUpdate(UpdatePolicy::Manual, "2.5.1", "2.5.2"));
+    assert(!ShouldBackgroundUpdate(UpdatePolicy::Automatic, "2.5.1", "2.5.2"));
+    const auto layout = ComputeFullscreenInstallerLayout(1920.0f, 1080.0f);
+    assert(layout.logoCenter.x > 900.0f && layout.logoCenter.x < 1000.0f);
+    assert(layout.logoFocalLength < 900.0f);
+    assert(layout.runnerGroundY > layout.runnerTopY);
 
     std::cout << "VEK interactive UI systems tests passed\n";
     return 0;
