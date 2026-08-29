@@ -309,3 +309,7 @@ All release notes and feature updates are kept in **`Versions.md`**.
 ## License
 
 VEK is released under the MIT License. See `LICENSE`.
+## VEK 2.5 Interactive Installer Runtime
+
+VEK 2.5 adds renderer-independent interactive UI primitives used by the Windows GitHub installer: rotating 3D presentation math, a deterministic one-button runner mini-game, semantic version status, and Auto/Manual update policy support. Trusted Git/filesystem operations remain in the native installer host.
+

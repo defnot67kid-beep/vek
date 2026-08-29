@@ -431,3 +431,11 @@ Do not create separate `CHANGELOG_*.md`, `UPDATE_GITHUB_*.md` or feature-specifi
 
 - `README.md`
 - `Versions.md`
+## VEK 2.5.0
+
+- Added renderer-independent `UiOrbit3D` projection/rotation helpers.
+- Added deterministic `RunnerMiniGame` physics for interactive installer/editor backgrounds.
+- Added semantic-version comparison and automatic/manual update policy primitives.
+- Rebuilt the GitHub installer around a rotating 3D VEK scene, three download modes, playable jump runner, responsive 3D loading visual, and accurate always-visible update status.
+- Installer can automatically update an outdated managed VEK clone when Auto Update is enabled, or wait for manual action when Manual Update is selected.
+

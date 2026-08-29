@@ -99,6 +99,22 @@ std::string readVersionFile(const fs::path& home) {
     return trim(s);
 }
 
+std::string readUpdatePolicy(const fs::path& home) {
+    std::ifstream in(home / "UPDATE_POLICY", std::ios::binary);
+    std::string value;
+    if (in) std::getline(in, value);
+    value = trim(value);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+    return value == "auto" ? "auto" : "manual";
+}
+
+bool writeUpdatePolicy(const fs::path& home, const std::string& policy) {
+    std::ofstream out(home / "UPDATE_POLICY", std::ios::binary | std::ios::trunc);
+    if (!out) return false;
+    out << policy << "\n";
+    return static_cast<bool>(out);
+}
+
 std::string normalizedPathString(fs::path p) {
     std::error_code ec;
     p = fs::weakly_canonical(p, ec);
@@ -424,6 +440,7 @@ int doctor(const fs::path& exe, const fs::path& home) {
     fs::exists(home / "LICENSE", ec) ? ok("license file") : warn("LICENSE not present");
     pathEnvironmentContains(home) ? ok("VEK home is on PATH") : warn("VEK home is not on PATH; run vek --install, VekInstaller.exe, or INSTALL_PATH.cmd on Windows");
     fs::exists(home / "manifest.sha256", ec) ? ok("portable integrity manifest") : warn("manifest.sha256 not present (normal in source/development builds)");
+    std::cout << "[INFO] Update policy: " << readUpdatePolicy(home) << "\n";
 
     if (const char* env = std::getenv("VEK_HOME")) {
         std::cout << "[INFO] VEK_HOME environment override: " << env << "\n";
@@ -441,6 +458,9 @@ void usage() {
         << "Usage:\n"
         << "  vek --version              Show version\n"
         << "  vek --install              Open the Windows graphical installer\n"
+        << "  vek update                 Open installer for update/repair\n"
+        << "  vek update-policy auto     Enable automatic update mode\n"
+        << "  vek update-policy manual   Use manual update mode\n"
         << "  vek info                   Show portable install information\n"
         << "  vek home                   Print detected VEK home\n"
         << "  vek doctor                 Check installation/PATH\n"
@@ -460,7 +480,22 @@ int main(int argc, char** argv) {
     if (argc < 2) { usage(); return 0; }
     const std::string cmd = argv[1];
     if (cmd == "version" || cmd == "--version" || cmd == "-v") { std::cout << "VEK " << VEK_VERSION_STRING << "\n"; return 0; }
-    if (cmd == "install" || cmd == "--install") return launchGuiInstaller(home);
+    if (cmd == "install" || cmd == "--install" || cmd == "update" || cmd == "--update") return launchGuiInstaller(home);
+    if (cmd == "update-policy") {
+        if (argc < 3) { std::cout << readUpdatePolicy(home) << "\n"; return 0; }
+        std::string mode = argv[2];
+        std::transform(mode.begin(), mode.end(), mode.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+        if (mode != "auto" && mode != "manual") {
+            std::cerr << "VEK update-policy must be 'auto' or 'manual'.\n";
+            return 2;
+        }
+        if (!writeUpdatePolicy(home, mode)) {
+            std::cerr << "VEK could not write UPDATE_POLICY in " << home.string() << "\n";
+            return 3;
+        }
+        std::cout << "VEK update policy: " << mode << "\n";
+        return 0;
+    }
     if (cmd == "info") { printInfo(exe, home); return 0; }
     if (cmd == "home") { std::cout << home.string() << "\n"; return 0; }
     if (cmd == "doctor") return doctor(exe, home);
