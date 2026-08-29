@@ -487,3 +487,10 @@ Do not create separate `CHANGELOG_*.md`, `UPDATE_GITHUB_*.md` or feature-specifi
 - Rebuilt the GitHub installer around a rotating 3D VEK scene, three download modes, playable jump runner, responsive 3D loading visual, and accurate always-visible update status.
 - Installer can automatically update an outdated managed VEK clone when Auto Update is enabled, or wait for manual action when Manual Update is selected.
 
+## v2.6.0
+- Door manipulation and interaction examples
+- Day/night cycle scripting examples
+- Developer cheat-panel example flow
+- Installer/runtime safety refinements
+- Interactive UI/runtime iteration
+- Secondary-motion and character-system groundwork for richer rigs

@@ -1,5 +1,8 @@
 # VEK
 
+VEK 2.6.0 is the current stable line.
+
+
 ## Windows GitHub installer
 
 The release workflow builds the responsive native Windows installer from

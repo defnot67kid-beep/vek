@@ -1,0 +1,15 @@
+# Developer cheat panel example for VEK 2.6.0
+# Opens when the garage keypad receives 37485 in dev mode.
+
+state cheat_panel = {
+  dev_mode:false,
+  keypad_input:"",
+  open:false
+};
+
+fn on_keypad_digit(digit) {
+  cheat_panel.keypad_input = cheat_panel.keypad_input + digit;
+  if (cheat_panel.dev_mode && cheat_panel.keypad_input == "37485") {
+    cheat_panel.open = true;
+  }
+}
