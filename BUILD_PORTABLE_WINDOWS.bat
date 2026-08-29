@@ -32,10 +32,11 @@ if exist "%STAGE_DIR%\bin\VekInstaller.exe" copy /y "%STAGE_DIR%\bin\VekInstalle
 if exist "%STAGE_DIR%\bin\vek.dll" copy /y "%STAGE_DIR%\bin\vek.dll" "%PKG_DIR%\vek.dll" >nul
 if exist "%STAGE_DIR%\lib" xcopy /e /i /y "%STAGE_DIR%\lib" "%PKG_DIR%\lib" >nul
 xcopy /e /i /y "%STAGE_DIR%\include" "%PKG_DIR%\include" >nul
-if exist "%STAGE_DIR%\share" xcopy /e /i /y "%STAGE_DIR%\share" "%PKG_DIR%\share" >nul
 xcopy /e /i /y "examples" "%PKG_DIR%\examples" >nul
 xcopy /e /i /y "docs" "%PKG_DIR%\docs" >nul
-for %%F in (VERSION LICENSE README.md PORTABLE_RELEASE.md RELEASE_NOTES_V2.2.0.md INSTALL_PATH.cmd UNINSTALL_PATH.cmd) do copy /y "%%F" "%PKG_DIR%\%%F" >nul
+for %%F in (VERSION LICENSE README.md INSTALL_PATH.cmd UNINSTALL_PATH.cmd) do copy /y "%%F" "%PKG_DIR%\%%F" >nul
+copy /y "docs\PORTABLE_RELEASE.md" "%PKG_DIR%\PORTABLE_RELEASE.md" >nul
+copy /y "docs\RELEASE_NOTES_V2.3.0.md" "%PKG_DIR%\RELEASE_NOTES_V2.3.0.md" >nul
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$root=(Resolve-Path '%PKG_DIR%').Path; $files=Get-ChildItem $root -File -Recurse ^| Sort-Object FullName; $lines=foreach($f in $files){$h=(Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLowerInvariant(); $r=[IO.Path]::GetRelativePath($root,$f.FullName).Replace('\','/'); $h+'  '+$r}; $lines ^| Set-Content -Encoding ascii (Join-Path $root 'manifest.sha256'); Compress-Archive -Path $root -DestinationPath '%PKG_DIR%.zip' -CompressionLevel Optimal"

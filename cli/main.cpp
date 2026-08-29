@@ -6,14 +6,12 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
-#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <thread>
 #include <vector>
 
 #if defined(_WIN32)
@@ -362,68 +360,27 @@ void printInfo(const fs::path& exe, const fs::path& home) {
 }
 
 
-std::pair<fs::path, std::string> detectInstalledVekForCli() {
-#if defined(_WIN32)
-    std::vector<fs::path> candidates{fs::path(L"C:\\vek")};
-    if (const char* env = std::getenv("VEK_HOME")) candidates.emplace_back(env);
-    if (const char* pathVar = std::getenv("PATH")) {
-        std::stringstream ss(pathVar);
-        std::string part;
-        while (std::getline(ss, part, ';')) {
-            part = trim(part);
-            if (part.size() >= 2 && part.front() == '"' && part.back() == '"') part = part.substr(1, part.size() - 2);
-            if (!part.empty()) candidates.emplace_back(part);
-        }
-    }
-    std::vector<std::string> seen;
-    for (const auto& root : candidates) {
-        const auto key = normalizedPathString(root);
-        if (std::find(seen.begin(), seen.end(), key) != seen.end()) continue;
-        seen.push_back(key);
-        std::error_code ec;
-        if (fs::is_regular_file(root / "vek.exe", ec) && fs::is_regular_file(root / "VERSION", ec)) {
-            return {root, readVersionFile(root)};
-        }
-    }
-#endif
-    return {};
-}
-
-void typeInstallLine(const std::string& line, int startMs, int floorMs) {
-    int delay = startMs;
-    for (char c : line) {
-        std::cout << c << std::flush;
-        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-        if (delay > floorMs) delay = std::max(floorMs, delay - 2);
-    }
-    std::cout << "\n" << std::flush;
-}
-
 void printInstallIntro() {
-    std::cout << "\n";
-    const std::vector<std::string> logo = {
-        " __     __  ______  _  __",
-        " \\ \\   / / |  ____|| |/ /",
-        "  \\ \\ / /  | |__   | ' / ",
-        "   \\ V /   |  __|  |  <  ",
-        "    \\_/    |______||_|\\_\\"
-    };
-    int startDelay = 30;
-    for (const auto& line : logo) {
-        typeInstallLine(line, startDelay, 3);
-        startDelay = std::max(7, startDelay - 6);
-    }
-    std::cout << "\n        V E K\n\n";
-    typeInstallLine("1 - 2 - 3", 85, 30);
-
-    const auto installed = detectInstalledVekForCli();
-    if (!installed.first.empty()) {
-        std::cout << "[DETECTED] VEK " << (installed.second.empty() ? "unknown" : installed.second)
-                  << " @ " << installed.first.string() << "\n";
-    } else {
-        std::cout << "[DETECTED] No existing VEK installation\n";
-    }
-    std::cout << "Installing VEK - [..........] 0/10\n" << std::flush;
+    std::cout
+        << "\n"
+        << " __     __  ______  _  __\n"
+        << " \\ \\   / / |  ____|| |/ /\n"
+        << "  \\ \\ / /  | |__   | ' / \n"
+        << "   \\ V /   |  __|  |  <  \n"
+        << "    \\_/    |______||_|\\_\\\n"
+        << "\n"
+        << "        V E K\n\n";
+#if defined(_WIN32)
+    std::cout << "1" << std::flush;
+    Sleep(220);
+    std::cout << " - 2" << std::flush;
+    Sleep(220);
+    std::cout << " - 3\n" << std::flush;
+    Sleep(220);
+#else
+    std::cout << "1 - 2 - 3\n";
+#endif
+    std::cout << "Installing VEK...\n" << std::flush;
 }
 
 int launchGuiInstaller(const fs::path& home) {
@@ -442,7 +399,7 @@ int launchGuiInstaller(const fs::path& home) {
                   << reinterpret_cast<INT_PTR>(result) << ").\n";
         return 3;
     }
-    std::cout << "VEK custom installer GUI opened. Installation progress continues in the VEK window.\n";
+    std::cout << "VEK graphical installer opened. Continue in the Windows installer window.\n";
     return 0;
 #else
     (void)home;

@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(VEK VERSION 2.2.4 LANGUAGES C CXX)
-
+project(VEK VERSION 2.3.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -16,42 +15,28 @@ if(MSVC AND VEK_PORTABLE_STATIC_MSVC_RUNTIME)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-# ---------------------------------------------------------------------------
-# Embeddable VEK runtime.
-# This is the stable target external games should link against:
-#     target_link_libraries(MyGame PRIVATE VEK::Runtime)
-# ---------------------------------------------------------------------------
 add_library(vek_runtime STATIC
     src/VekScriptEngine.cpp
     src/VekGameSystems.cpp
     src/VekEditorSystems.cpp
     src/VekSdkSystems.cpp
     src/VekAuthoritySystems.cpp
+    src/VekPhysicsSystems.cpp
 )
-
-target_include_directories(vek_runtime
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-)
-
-set_target_properties(vek_runtime PROPERTIES
-    POSITION_INDEPENDENT_CODE ON
-    EXPORT_NAME Runtime
-)
-
+target_include_directories(vek_runtime PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+set_target_properties(vek_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON EXPORT_NAME Runtime)
 add_library(VEK::Runtime ALIAS vek_runtime)
 
 if(VEK_BUILD_C_ABI)
     add_library(vek_c SHARED src/vek_c.cpp)
     target_link_libraries(vek_c PRIVATE VEK::Runtime)
-    target_include_directories(vek_c
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>
-    )
+    target_include_directories(vek_c PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
     target_compile_definitions(vek_c PRIVATE VEK_C_EXPORTS=1)
-    set_target_properties(vek_c PROPERTIES OUTPUT_NAME "vek" EXPORT_NAME CABI)
+    set_target_properties(vek_c PROPERTIES OUTPUT_NAME "vek")
     add_library(VEK::CABI ALIAS vek_c)
 endif()
 
@@ -69,7 +54,6 @@ endif()
 
 if(VEK_BUILD_TESTS)
     enable_testing()
-
     add_executable(vek_tests tests/vek_tests.cpp)
     target_link_libraries(vek_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_language COMMAND vek_tests)
@@ -94,6 +78,10 @@ if(VEK_BUILD_TESTS)
     target_link_libraries(vek_authority_security_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_authority_security COMMAND vek_authority_security_tests)
 
+    add_executable(vek_physics_systems_tests tests/physics_systems_tests.cpp)
+    target_link_libraries(vek_physics_systems_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_secondary_motion_physics COMMAND vek_physics_systems_tests)
+
     if(VEK_BUILD_C_ABI)
         add_executable(vek_c_api_tests tests/c_api_tests.c)
         target_link_libraries(vek_c_api_tests PRIVATE vek_c)
@@ -102,59 +90,23 @@ if(VEK_BUILD_TESTS)
 endif()
 
 include(GNUInstallDirs)
-
-install(TARGETS vek_runtime
-    EXPORT VEKTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
+install(TARGETS vek_runtime EXPORT VEKTargets ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 if(VEK_BUILD_C_ABI)
-    install(TARGETS vek_c
-        EXPORT VEKTargets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
+  install(TARGETS vek_c
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
-
 if(VEK_BUILD_CLI)
-    install(TARGETS vek_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(TARGETS vek_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
-
 if(WIN32 AND VEK_BUILD_CLI AND VEK_BUILD_INSTALLER)
-    install(TARGETS vek_installer RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(TARGETS vek_installer RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
-
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT VEKTargets FILE VEKTargets.cmake NAMESPACE VEK:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VEK)
 
-install(EXPORT VEKTargets
-    FILE VEKTargets.cmake
-    NAMESPACE VEK::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VEK
-)
-
-# Keep install() resilient as the public repo is intentionally tidy.
-foreach(_vek_optional_file
-    VERSION
-    LICENSE
-    README.md
-    Versions.md
-    INSTALL_PATH.cmd
-    UNINSTALL_PATH.cmd
-    BUILD_PORTABLE_WINDOWS.bat
-    BUILD_WINDOWS.bat
-)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_vek_optional_file}")
-        install(FILES "${_vek_optional_file}" DESTINATION .)
-    endif()
-endforeach()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples")
-    install(DIRECTORY examples/ DESTINATION examples)
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/docs")
-    install(DIRECTORY docs/ DESTINATION docs)
-endif()
-
-message(STATUS "VEK runtime target ready: VEK::Runtime")
+# Files installed for relocatable/portable distributions.
+install(FILES VERSION LICENSE README.md INSTALL_PATH.cmd UNINSTALL_PATH.cmd BUILD_PORTABLE_WINDOWS.bat DESTINATION .)
+install(DIRECTORY examples/ DESTINATION examples)
+install(DIRECTORY docs/ DESTINATION docs)

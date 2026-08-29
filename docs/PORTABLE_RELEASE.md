@@ -37,7 +37,3 @@ The graphical installer does not replace the portable architecture. It is a conv
 ## Integrity
 
 The GitHub release workflow creates `manifest.sha256` after assembling the final package. `vek verify` checks installed files against that local manifest. The release ZIP also receives its own SHA-256 file.
-
-### VEK installer UI
-
-The Windows package includes `share/vek/installer_ui.vek`. `VekInstaller.exe` runs this VEK UI definition and renders its command buffer in a custom dark/terminal-style Windows window. The native host remains responsible for privileged filesystem/environment operations so the UI layer does not gain unrestricted host capabilities.

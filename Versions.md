@@ -1,3 +1,14 @@
+# VEK 2.3.0
+
+- Added `VEK::Runtime`-compatible secondary-motion physics.
+- Added deterministic `SpringChain3D` Verlet solver.
+- Added fixed-length constraint iterations and bounded substeps.
+- Added sphere collision so hair/cloth chains can remain outside character geometry.
+- Added inertia, damping, stiffness, air drag, gravity and external-force controls.
+- Added `SecondaryMotionProfileRegistry` and VEK script registration natives.
+- Added `hair_physics.vek` example and physics regression tests.
+- Updated version macros and CMake runtime export.
+
 # VEK Version History
 
 ## VEK 2.2.0

@@ -10,25 +10,5 @@ build/
 *.lib
 *.dll
 
-# Text/log files
+# Keep repository root/source tree tidy
 *.txt
-
-# Build output
-build/
-out/
-bin/
-obj/
-*.obj
-*.pdb
-*.ilk
-
-# IDE/editor files
-.vs/
-.vscode/
-*.user
-*.suo
-
-# OS junk
-desktop.ini
-Thumbs.db
-.DS_Store

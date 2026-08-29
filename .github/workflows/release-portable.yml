@@ -17,13 +17,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure VEK
-        run: cmake -S . -B build -A x64 -DVEK_BUILD_TESTS=ON -DVEK_BUILD_C_ABI=ON -DVEK_PORTABLE_STATIC_MSVC_RUNTIME=ON
+        run: cmake -S . -B build -A x64 -DVEK_BUILD_TESTS=ON -DVEK_BUILD_C_ABI=ON -DVEK_BUILD_INSTALLER=OFF -DVEK_PORTABLE_STATIC_MSVC_RUNTIME=ON
 
       - name: Build VEK
         run: cmake --build build --config Release --parallel
 
       - name: Test VEK
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Setup Go for responsive GitHub installer
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Build GitHub-cloning VEK installer
+        shell: pwsh
+        run: |
+          Push-Location tools/github-installer
+          go build -trimpath -ldflags="-s -w -H=windowsgui" -o ../../build/VekInstaller.exe .
+          Pop-Location
 
       - name: Install staging tree
         run: cmake --install build --config Release --prefix stage
@@ -39,14 +51,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path $root | Out-Null
 
           Copy-Item "stage/bin/vek.exe" "$root/vek.exe"
-          Copy-Item "stage/bin/VekInstaller.exe" "$root/VekInstaller.exe"
+          Copy-Item "build/VekInstaller.exe" "$root/VekInstaller.exe"
           if (Test-Path "stage/bin/vek.dll") { Copy-Item "stage/bin/vek.dll" "$root/vek.dll" }
           if (Test-Path "stage/lib") { Copy-Item "stage/lib" "$root/lib" -Recurse }
           Copy-Item "stage/include" "$root/include" -Recurse
-          if (Test-Path "stage/share") { Copy-Item "stage/share" "$root/share" -Recurse }
           Copy-Item "examples" "$root/examples" -Recurse
           Copy-Item "docs" "$root/docs" -Recurse
-          Copy-Item "VERSION","LICENSE","README.md","PORTABLE_RELEASE.md","RELEASE_NOTES_V2.2.0.md","INSTALL_PATH.cmd","UNINSTALL_PATH.cmd" $root
+          Copy-Item "VERSION","LICENSE","README.md","INSTALL_PATH.cmd","UNINSTALL_PATH.cmd" $root
+          Copy-Item "docs/PORTABLE_RELEASE.md" "$root/PORTABLE_RELEASE.md"
+          Copy-Item "docs/RELEASE_NOTES_V2.3.0.md" "$root/RELEASE_NOTES_V2.3.0.md"
+          "https://github.com/defnot67kid-beep/vek.git" | Set-Content -Encoding ascii "$root/REPOSITORY.txt"
 
           $files = Get-ChildItem $root -File -Recurse | Where-Object { $_.Name -ne 'manifest.sha256' } | Sort-Object FullName
           $lines = foreach ($f in $files) {

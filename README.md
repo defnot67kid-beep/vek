@@ -1,5 +1,24 @@
 # VEK
 
+## Windows GitHub installer
+
+The release workflow builds the responsive native Windows installer from
+`tools/github-installer`. It detects an existing `C:\vek`, clones or updates
+`https://github.com/defnot67kid-beep/vek.git` into `C:\vek\repo`, keeps the
+Win32 UI responsive while Git runs in the background, and adds `C:\vek` to the
+current user's PATH.
+
+## VEK 2.3 — Secondary-Motion Physics
+
+VEK 2.3 adds a renderer-independent spring-chain physics solver designed for
+hair, cloth strips, cables, ropes and other secondary motion. It includes
+substepping, damping, stiffness, inertia, wind/external acceleration,
+fixed-length constraints and sphere collision. The CustomVehicleGame uses this
+system for articulated hair instead of purely procedural sine-wave movement.
+
+See `docs/PHYSICS_SYSTEM.md` and `examples/hair_physics.vek`.
+
+
 **VEK (Vehicle Engineering Kernel)** is an original, embeddable programming language and gameplay SDK written in C++20.
 
 VEK started as the secure gameplay scripting language for the Custom Vehicle Game, but the runtime is designed to be usable by other applications as well. It keeps one canonical language/runtime implementation and exposes safe host APIs instead of requiring every host language to reimplement VEK.
@@ -290,43 +309,3 @@ All release notes and feature updates are kept in **`Versions.md`**.
 ## License
 
 VEK is released under the MIT License. See `LICENSE`.
-
-## Hacker-style `vek --install`
-
-VEK 2.2's Windows install flow now detects existing VEK installs, animates the VEK ASCII logo from slow to fast, and opens a custom VEK-driven graphical installer. The GUI is authored in `share/vek/installer_ui.vek` and rendered by the native Windows host. Installation displays ten progress stages and auto-closes five seconds after success.
-
-## New GitHub Repository Setup
-
-Run Git commands only from inside your `VEK-Language` folder.
-
-```bat
-cd /d C:\Users\User\OneDrive\Documents\VEK-Language
-
-git init
-git branch -M main
-git rev-parse --show-toplevel
-```
-
-The last command must end with:
-
-```text
-/VEK-Language
-```
-
-Then connect the new repository:
-
-```bat
-git remote add origin https://github.com/defnot67kid-beep/vek.git
-git add -A
-git commit -m "Initial VEK programming language release"
-git push -u origin main
-```
-
-Create the release tag that matches the version in the `VERSION` file:
-
-```bat
-git tag v2.2.0
-git push origin v2.2.0
-```
-
-Do **not** run `git init` from your whole Documents folder.

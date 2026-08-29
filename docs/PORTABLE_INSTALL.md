@@ -58,19 +58,9 @@ VEK itself remains relocatable. If you move the folder after registering PATH, u
 Developers and contributors can still use:
 
 ```bat
-git clone https://github.com/defnot67kid-beep/VekProgramingLanguage.git
-cd VekProgramingLanguage
+git clone https://github.com/defnot67kid-beep/vek.git
+cd vek
 BUILD_WINDOWS.bat
 ```
 
 The release ZIP is the normal-user path. Git clone is for source development.
-
-## VEK-driven graphical installer
-
-On Windows, `vek --install` launches `VekInstaller.exe`. VEK first prints an animated console boot sequence, checks for an existing installation, then opens the custom VEK installer window.
-
-The installer window is not a stock pre-install wizard. Its layout and button/state decisions are emitted by `share/vek/installer_ui.vek` through VEK's `GuiSystem`, while a small hardened native Windows host performs filesystem and PATH operations.
-
-Existing installations are detected from `C:\vek`, `VEK_HOME`, process PATH, and User PATH. If found, the primary action changes to **REPAIR / UPDATE VEK**.
-
-Installation uses ten visible stages (`0/10` to `10/10`). On success the window says that VEK is installed and automatically closes after five seconds unless the user closes it first.
