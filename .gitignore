@@ -1,0 +1,34 @@
+build/
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.exe
+*.obj
+*.pdb
+*.lib
+*.dll
+
+# Text/log files
+*.txt
+
+# Build output
+build/
+out/
+bin/
+obj/
+*.obj
+*.pdb
+*.ilk
+
+# IDE/editor files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# OS junk
+desktop.ini
+Thumbs.db
+.DS_Store

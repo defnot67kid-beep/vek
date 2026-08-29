@@ -1,0 +1,9 @@
+// Renderer-neutral GUI example. An embedding host registers vek::GuiSystem.
+fn draw_menu() {
+    gui_begin_window("main", "VEK ENGINEERING", 0, 0, 800, 600);
+    gui_label("Choose mode");
+    if gui_button("survival", "SURVIVAL") { gui_end_window(); return "survival"; }
+    if gui_button("sandbox", "SANDBOX") { gui_end_window(); return "sandbox"; }
+    gui_end_window();
+    return "";
+}

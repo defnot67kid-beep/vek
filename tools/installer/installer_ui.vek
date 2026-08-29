@@ -1,0 +1,74 @@
+// VEK 2.2 installer UI definition.
+// The native Windows host renders this VEK GuiSystem command buffer.
+// File operations remain in the hardened native installer host; layout/state
+// decisions live here so VEK is literally driving its own installer UI.
+
+fn progress_cells(progress) {
+    if progress <= 0 { return ".........."; }
+    if progress == 1 { return "#........."; }
+    if progress == 2 { return "##........"; }
+    if progress == 3 { return "###......."; }
+    if progress == 4 { return "####......"; }
+    if progress == 5 { return "#####....."; }
+    if progress == 6 { return "######...."; }
+    if progress == 7 { return "#######..."; }
+    if progress == 8 { return "########.."; }
+    if progress == 9 { return "#########."; }
+    return "##########";
+}
+
+fn draw_installer(progress, detected, target, status, complete, seconds, add_path, failed, detected_version) {
+    gui_begin_window("vek_installer", "VEK // INSTALLER");
+    gui_label("VEK");
+    gui_label("PROGRAMMING LANGUAGE // SECURE RUNTIME");
+
+    if detected {
+        gui_status_badge("detected", "EXISTING VEK " + detected_version + " DETECTED", "detected");
+    } else {
+        gui_status_badge("detected", "NO EXISTING VEK INSTALLATION DETECTED", "clean");
+    }
+
+    gui_label("TARGET // " + target);
+    gui_progress("install_progress", progress, 0, 10);
+    gui_label("INSTALLING VEK - [" + progress_cells(progress) + "] " + string(progress) + "/10");
+    gui_label(status);
+
+    if failed {
+        gui_status_badge("failed", "INSTALLATION INTERRUPTED", "error");
+        if gui_button("install", "RETRY INSTALLATION") { gui_end_window(); return "install"; }
+        if gui_button("choose", "CHANGE INSTALL FOLDER") { gui_end_window(); return "choose"; }
+        if gui_button("close", "CLOSE") { gui_end_window(); return "close"; }
+        gui_end_window();
+        return "";
+    }
+
+    if complete {
+        gui_status_badge("complete", "VEK INSTALLED", "success");
+        gui_label("VEK installed. You may close this window or auto close in " + string(seconds) + " seconds.");
+        if gui_button("close", "CLOSE NOW") { gui_end_window(); return "close"; }
+        gui_end_window();
+        return "";
+    }
+
+    if progress > 0 {
+        gui_label("PLEASE WAIT // DO NOT CLOSE THE INSTALLER");
+        gui_end_window();
+        return "";
+    }
+
+    if detected {
+        if gui_button("install", "REPAIR / UPDATE VEK") { gui_end_window(); return "install"; }
+    } else {
+        if gui_button("install", "INSTALL VEK") { gui_end_window(); return "install"; }
+    }
+    if gui_button("choose", "CHANGE INSTALL FOLDER") { gui_end_window(); return "choose"; }
+    if add_path {
+        if gui_button("path_toggle", "USER PATH // ON") { gui_end_window(); return "toggle_path"; }
+    } else {
+        if gui_button("path_toggle", "USER PATH // OFF") { gui_end_window(); return "toggle_path"; }
+    }
+    if gui_button("close", "CANCEL") { gui_end_window(); return "close"; }
+
+    gui_end_window();
+    return "";
+}

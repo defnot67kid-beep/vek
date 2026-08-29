@@ -1,0 +1,20 @@
+// VEK 1.1 gameplay-system example.
+fn simulate_fall(velocity, dt) {
+    return gravity_step(velocity, 15.5, 32.0, dt, false);
+}
+
+fn take_damage(health, max_health, damage) {
+    return health_damage(health, max_health, damage);
+}
+
+fn should_ragdoll(health, impact_speed, damage) {
+    return ragdoll_should_trigger(health, impact_speed, damage, 13.0, 25.0);
+}
+
+fn main() {
+    let velocity = simulate_fall(0, 0.5);
+    let health = take_damage(100, 100, 22);
+    println("velocity", velocity, "health", health);
+    println("ragdoll", should_ragdoll(health, 16, 22));
+    return 0;
+}

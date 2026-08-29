@@ -1,0 +1,1 @@
+{"name":"@vek/runtime","version":"1.7.0","private":true,"gypfile":true,"main":"index.js","description":"Node N-API wrapper for the canonical VEK C ABI"}
