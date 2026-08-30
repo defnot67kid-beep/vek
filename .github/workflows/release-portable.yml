@@ -59,7 +59,7 @@ jobs:
           Copy-Item "docs" "$root/docs" -Recurse
           Copy-Item "VERSION","LICENSE","README.md","INSTALL_PATH.cmd","UNINSTALL_PATH.cmd" $root
           Copy-Item "docs/PORTABLE_RELEASE.md" "$root/PORTABLE_RELEASE.md"
-          Copy-Item "docs/RELEASE_NOTES_V2.6.0.md" "$root/RELEASE_NOTES_V2.6.0.md"
+          Copy-Item "docs/RELEASE_NOTES_V2.7.0.md" "$root/RELEASE_NOTES_V2.7.0.md"
           "https://github.com/defnot67kid-beep/vek.git" | Set-Content -Encoding ascii "$root/REPOSITORY.txt"
           "manual" | Set-Content -Encoding ascii "$root/UPDATE_POLICY"
 

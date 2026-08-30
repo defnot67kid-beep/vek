@@ -1,6 +1,7 @@
 #include <vek/vek_c.h>
 #include <vek/VekScriptEngine.h>
 #include <vek/VekAuthoritySystems.h>
+#include <vek/VekDiagnosticsSystems.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -13,6 +14,7 @@ struct vek_runtime {
     vek::AuthorityActionRegistry actions;
     vek::ReplicationSchemaRegistry replication;
     vek::ServerAuthoritySystem authority{vek::HostAuthorityRole::Standalone};
+    vek::VekDebugger debugger;
     struct Native { vek_native_fn fn=nullptr; void* user=nullptr; };
     std::unordered_map<std::string,Native> native;
     vek_runtime(){VekRegisterStandardLibrary(engine);vek::VekRegisterAuthorityLibrary(engine,&actions,&replication);}
@@ -55,5 +57,20 @@ vek_value vek_emit_event(vek_runtime*r,const char*n,const vek_value*a,size_t c){
 int vek_has_function(vek_runtime*r,const char*n){return r&&n&&r->engine.HasFunction(n);}
 int vek_has_event(vek_runtime*r,const char*n){return r&&n&&r->engine.HasEvent(n);}
 const char* vek_last_error(vek_runtime*r){return r?r->engine.LastError().c_str():"VEK: null runtime";}
+const char* vek_last_diagnostic_code(vek_runtime*r){if(!r)return "VEK0000";r->scratch=r->engine.LastDiagnostic().code;return r->scratch.c_str();}
+const char* vek_last_diagnostic_text(vek_runtime*r){if(!r)return "VEK: null runtime";r->scratch=vek::FormatDiagnostic(r->engine.LastDiagnostic(),true);return r->scratch.c_str();}
+size_t vek_diagnostic_count(vek_runtime*r){return r?r->engine.Diagnostics().size():0;}
+int vek_debugger_attach(vek_runtime*r,int enabled){if(!r)return 0;r->debugger.Attach(enabled!=0);r->engine.SetDebugger(enabled?&r->debugger:nullptr);return 1;}
+int vek_debugger_add_function_breakpoint(vek_runtime*r,const char*n){if(!r||!n||!*n)return 0;r->debugger.AddFunctionBreakpoint(n);return 1;}
+int vek_debugger_remove_function_breakpoint(vek_runtime*r,const char*n){if(!r||!n||!*n)return 0;r->debugger.RemoveFunctionBreakpoint(n);return 1;}
+int vek_debugger_add_line_breakpoint(vek_runtime*r,const char*s,int line){if(!r||!s||!*s||line<=0)return 0;r->debugger.AddLineBreakpoint(s,line);return 1;}
+int vek_debugger_remove_line_breakpoint(vek_runtime*r,const char*s,int line){if(!r||!s||!*s||line<=0)return 0;r->debugger.RemoveLineBreakpoint(s,line);return 1;}
+void vek_debugger_continue(vek_runtime*r){if(r)r->debugger.Continue();}
+int vek_debugger_is_paused(vek_runtime*r){return r&&r->debugger.Paused()?1:0;}
+const char* vek_debugger_paused_function(vek_runtime*r){if(!r)return "";r->scratch=r->debugger.PausedFunction();return r->scratch.c_str();}
+const char* vek_debugger_trace_json(vek_runtime*r){if(!r)return "[]";VekArray rows;for(auto&e:r->debugger.TraceSnapshot()){VekMap m;m["sequence"]=(double)e.sequence;m["kind"]=e.kind;m["function"]=e.function;m["source"]=e.source;m["line"]=(double)e.line;m["detail"]=e.detail;rows.emplace_back(std::move(m));}r->scratch=VekValue(std::move(rows)).ToJson();return r->scratch.c_str();}
+int vek_install_crash_handler(vek_runtime*r,const char*path,const char*product,const char*build){if(!r)return 0;auto&h=vek::VekCrashHandler::Instance();vek::CrashContext c;c.product=product&&*product?product:"VEK Host";c.version=VEK_VERSION_STRING;c.build=build?build:"";h.SetContext(std::move(c));return h.Install(path&&*path?path:"vek_crashlogs.txt")?1:0;}
+void vek_set_crash_stage(vek_runtime*r,const char*stage){if(r)vek::VekCrashHandler::Instance().SetStage(stage?stage:"");}
+int vek_write_crash_report(vek_runtime*r,const char*reason){if(!r)return 0;return vek::VekCrashHandler::Instance().WriteManualCrash(reason?reason:"manual crash report")?1:0;}
 const char* vek_version(void){return VEK_VERSION_STRING;}
 }

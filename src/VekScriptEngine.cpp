@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -97,7 +98,7 @@ namespace {
 
 enum class TokenType {
     End, Identifier, Number, String,
-    Fn, If, Else, Let, While, Break, Continue, Return, True, False, Nil,
+    Fn, If, Else, Let, While, For, In, Try, Catch, Throw, Break, Continue, Return, True, False, Nil,
     Struct, Event,
     LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
     Comma, Semicolon, Colon, Dot,
@@ -124,20 +125,20 @@ private:
         case '!':Add(o,Match('=')?TokenType::BangEqual:TokenType::Bang);break;case '=':Add(o,Match('=')?TokenType::EqualEqual:TokenType::Equal);break;
         case '>':Add(o,Match('=')?TokenType::GreaterEqual:TokenType::Greater);break;case '<':Add(o,Match('=')?TokenType::LessEqual:TokenType::Less);break;
         case '&':if(Match('&'))Add(o,TokenType::AndAnd);else Error("expected '&' after '&'");break;case '|':if(Match('|'))Add(o,TokenType::OrOr);else Error("expected '|' after '|'");break;
-        case '/':if(Match('/')){while(Peek()!='\n'&&!AtEnd())Advance();}else Add(o,TokenType::Slash);break;case '#':while(Peek()!='\n'&&!AtEnd())Advance();break;
+        case '/':if(Match('/')){while(Peek()!='\n'&&!AtEnd())Advance();}else if(Match('*')){bool closed=false;while(!AtEnd()){char x=Advance();if(x=='\n')++line;if(x=='*'&&Peek()=='/'){Advance();closed=true;break;}}if(!closed)Error("unterminated block comment");}else Add(o,TokenType::Slash);break;case '#':while(Peek()!='\n'&&!AtEnd())Advance();break;
         case ' ':case '\r':case '\t':break;case '\n':++line;break;case '"':String(o);break;
         default:if(std::isdigit((unsigned char)c))Number(o);else if(std::isalpha((unsigned char)c)||c=='_')Identifier(o);else Error("unexpected character");break;}}
     void String(std::vector<Token>&o){std::string v;while(!AtEnd()&&Peek()!='"'){char c=Advance();if(c=='\n')++line;if(c=='\\'&&!AtEnd()){char e=Advance();switch(e){case 'n':v+='\n';break;case 'r':v+='\r';break;case 't':v+='\t';break;case '"':v+='"';break;case '\\':v+='\\';break;default:v+=e;}}else v+=c;if(v.size()>policy.maxStringBytes)Error("string literal exceeds configured limit");}if(AtEnd())Error("unterminated string");Advance();o.push_back({TokenType::String,v,0,line});}
     void Number(std::vector<Token>&o){while(std::isdigit((unsigned char)Peek()))Advance();if(Peek()=='.'&&std::isdigit((unsigned char)PeekNext())){Advance();while(std::isdigit((unsigned char)Peek()))Advance();}std::string t=source.substr(start,current-start);o.push_back({TokenType::Number,t,std::stod(t),line});}
-    void Identifier(std::vector<Token>&o){while(std::isalnum((unsigned char)Peek())||Peek()=='_')Advance();std::string t=source.substr(start,current-start);static const std::unordered_map<std::string,TokenType>w={{"fn",TokenType::Fn},{"if",TokenType::If},{"else",TokenType::Else},{"let",TokenType::Let},{"while",TokenType::While},{"break",TokenType::Break},{"continue",TokenType::Continue},{"return",TokenType::Return},{"true",TokenType::True},{"false",TokenType::False},{"nil",TokenType::Nil},{"struct",TokenType::Struct},{"event",TokenType::Event}};auto it=w.find(t);o.push_back({it==w.end()?TokenType::Identifier:it->second,t,0,line});}
+    void Identifier(std::vector<Token>&o){while(std::isalnum((unsigned char)Peek())||Peek()=='_')Advance();std::string t=source.substr(start,current-start);static const std::unordered_map<std::string,TokenType>w={{"fn",TokenType::Fn},{"if",TokenType::If},{"else",TokenType::Else},{"let",TokenType::Let},{"while",TokenType::While},{"for",TokenType::For},{"in",TokenType::In},{"try",TokenType::Try},{"catch",TokenType::Catch},{"throw",TokenType::Throw},{"break",TokenType::Break},{"continue",TokenType::Continue},{"return",TokenType::Return},{"true",TokenType::True},{"false",TokenType::False},{"nil",TokenType::Nil},{"struct",TokenType::Struct},{"event",TokenType::Event}};auto it=w.find(t);o.push_back({it==w.end()?TokenType::Identifier:it->second,t,0,line});}
 };
 
 struct Expr {
     enum class Kind{Literal,Variable,Unary,Binary,Call,Array,Object,Index,Member,StructInit}kind=Kind::Literal;
     VekValue literal;std::string text;TokenType op=TokenType::End;std::unique_ptr<Expr>left,right;std::vector<std::unique_ptr<Expr>>args;std::vector<std::pair<std::string,std::unique_ptr<Expr>>>fields;
 };
-struct Stmt {enum class Kind{Expression,Let,Assign,If,While,Break,Continue,Return}kind=Kind::Expression;std::string name;std::unique_ptr<Expr>expression;std::vector<Stmt>thenBranch,elseBranch;};
-struct FunctionDef{std::vector<std::string>params;std::vector<Stmt>body;};
+struct Stmt {enum class Kind{Expression,Let,Assign,If,While,ForEach,TryCatch,Throw,Break,Continue,Return}kind=Kind::Expression;int line=0;std::string name;std::unique_ptr<Expr>expression;std::vector<Stmt>thenBranch,elseBranch;};
+struct FunctionDef{int line=0;std::vector<std::string>params;std::vector<Stmt>body;};
 struct Program{std::unordered_map<std::string,FunctionDef>functions;std::unordered_map<std::string,std::vector<std::string>>structs;std::unordered_set<std::string>events;};
 
 class Parser {
@@ -146,7 +147,7 @@ public:
     Program ParseProgram(){Program out;while(!Check(TokenType::End)){
         if(Match(TokenType::Struct)){ParseStruct(out);continue;}
         bool event=false;if(Match(TokenType::Event))event=true;else Consume(TokenType::Fn,"expected 'fn', 'event', or 'struct'");
-        if(out.functions.size()>=policy.maxFunctions)Error("function count exceeds limit");Token name=Consume(TokenType::Identifier,"expected function/event name");FunctionDef fn=ParseFunctionTail();std::string stored=event?"__event_"+name.lexeme:name.lexeme;out.functions[stored]=std::move(fn);if(event)out.events.insert(name.lexeme);
+        if(out.functions.size()>=policy.maxFunctions)Error("function count exceeds limit");Token name=Consume(TokenType::Identifier,"expected function/event name");FunctionDef fn=ParseFunctionTail();fn.line=name.line;std::string stored=event?"__event_"+name.lexeme:name.lexeme;out.functions[stored]=std::move(fn);if(event)out.events.insert(name.lexeme);
     }return out;}
 private:
     std::vector<Token>tokens;const VekSecurityPolicy&policy;std::size_t current=0;
@@ -154,9 +155,12 @@ private:
     void ParseStruct(Program&out){Token name=Consume(TokenType::Identifier,"expected struct name");Consume(TokenType::LeftBrace,"expected '{'");std::vector<std::string>fields;while(!Check(TokenType::RightBrace)&&!AtEnd()){fields.push_back(Consume(TokenType::Identifier,"expected field name").lexeme);Consume(TokenType::Semicolon,"expected ';' after struct field");if(fields.size()>256)Error("too many struct fields");}Consume(TokenType::RightBrace,"expected '}'");Match(TokenType::Semicolon);out.structs[name.lexeme]=std::move(fields);}
     FunctionDef ParseFunctionTail(){Consume(TokenType::LeftParen,"expected '('");FunctionDef fn;if(!Check(TokenType::RightParen)){do{if(fn.params.size()>=policy.maxParametersPerFunction)Error("too many function parameters");fn.params.push_back(Consume(TokenType::Identifier,"expected parameter name").lexeme);}while(Match(TokenType::Comma));}Consume(TokenType::RightParen,"expected ')'");fn.body=ParseBlock();return fn;}
     std::vector<Stmt>ParseBlock(){Consume(TokenType::LeftBrace,"expected '{'");std::vector<Stmt>b;while(!Check(TokenType::RightBrace)&&!AtEnd())b.push_back(ParseStatement());Consume(TokenType::RightBrace,"expected '}'");return b;}
-    Stmt ParseStatement(){if(Match(TokenType::If))return ParseIf();if(Match(TokenType::While))return ParseWhile();if(Match(TokenType::Let))return ParseLet();if(Match(TokenType::Break)){Stmt s;s.kind=Stmt::Kind::Break;Consume(TokenType::Semicolon,"expected ';'");return s;}if(Match(TokenType::Continue)){Stmt s;s.kind=Stmt::Kind::Continue;Consume(TokenType::Semicolon,"expected ';'");return s;}if(Match(TokenType::Return))return ParseReturn();if(Check(TokenType::Identifier)&&CheckNext(TokenType::Equal))return ParseAssign();Stmt s;s.kind=Stmt::Kind::Expression;s.expression=ParseExpression();Consume(TokenType::Semicolon,"expected ';' after expression");return s;}
+    Stmt ParseStatement(){int line=tokens[current].line;Stmt s;if(Match(TokenType::If))s=ParseIf();else if(Match(TokenType::While))s=ParseWhile();else if(Match(TokenType::For))s=ParseForEach();else if(Match(TokenType::Try))s=ParseTryCatch();else if(Match(TokenType::Throw))s=ParseThrow();else if(Match(TokenType::Let))s=ParseLet();else if(Match(TokenType::Break)){s.kind=Stmt::Kind::Break;Consume(TokenType::Semicolon,"expected ';'");}else if(Match(TokenType::Continue)){s.kind=Stmt::Kind::Continue;Consume(TokenType::Semicolon,"expected ';'");}else if(Match(TokenType::Return))s=ParseReturn();else if(Check(TokenType::Identifier)&&CheckNext(TokenType::Equal))s=ParseAssign();else{s.kind=Stmt::Kind::Expression;s.expression=ParseExpression();Consume(TokenType::Semicolon,"expected ';' after expression");}s.line=line;return s;}
     Stmt ParseIf(){Stmt s;s.kind=Stmt::Kind::If;s.expression=ParseExpression();s.thenBranch=ParseBlock();if(Match(TokenType::Else)){if(Match(TokenType::If)){Stmt n=ParseIf();s.elseBranch.push_back(std::move(n));}else s.elseBranch=ParseBlock();}return s;}
     Stmt ParseWhile(){Stmt s;s.kind=Stmt::Kind::While;s.expression=ParseExpression();s.thenBranch=ParseBlock();return s;}
+    Stmt ParseForEach(){Stmt s;s.kind=Stmt::Kind::ForEach;s.name=Consume(TokenType::Identifier,"expected loop variable after 'for'").lexeme;Consume(TokenType::In,"expected 'in' after loop variable");s.expression=ParseExpression();s.thenBranch=ParseBlock();return s;}
+    Stmt ParseTryCatch(){Stmt s;s.kind=Stmt::Kind::TryCatch;s.thenBranch=ParseBlock();Consume(TokenType::Catch,"expected 'catch' after try block");Consume(TokenType::LeftParen,"expected '(' after catch");s.name=Consume(TokenType::Identifier,"expected catch variable").lexeme;Consume(TokenType::RightParen,"expected ')' after catch variable");s.elseBranch=ParseBlock();return s;}
+    Stmt ParseThrow(){Stmt s;s.kind=Stmt::Kind::Throw;s.expression=ParseExpression();Consume(TokenType::Semicolon,"expected ';' after throw");return s;}
     Stmt ParseLet(){Stmt s;s.kind=Stmt::Kind::Let;s.name=Consume(TokenType::Identifier,"expected variable name").lexeme;Consume(TokenType::Equal,"expected '='");s.expression=ParseExpression();Consume(TokenType::Semicolon,"expected ';'");return s;}
     Stmt ParseAssign(){Stmt s;s.kind=Stmt::Kind::Assign;s.name=Advance().lexeme;Consume(TokenType::Equal,"expected '='");s.expression=ParseExpression();Consume(TokenType::Semicolon,"expected ';'");return s;}
     Stmt ParseReturn(){Stmt s;s.kind=Stmt::Kind::Return;if(!Check(TokenType::Semicolon))s.expression=ParseExpression();Consume(TokenType::Semicolon,"expected ';'");return s;}
@@ -189,25 +193,95 @@ bool PathInside(const fs::path&p,const fs::path&root){auto pp=fs::weakly_canonic
 } // namespace
 
 struct VekScriptEngine::Impl {
-    std::unordered_map<std::string,FunctionDef>functions;std::unordered_map<std::string,std::vector<std::string>>structs;std::unordered_set<std::string>events;std::unordered_map<std::string,NativeFunction>natives;
-    std::string lastError,sourceName;bool loaded=false,nativesSealed=false;VekSecurityPolicy policy;std::vector<std::string>moduleRoots;
+    struct ScriptThrown { VekValue value; };
+    struct DebugPauseSignal {};
+
+    std::unordered_map<std::string,FunctionDef> functions;
+    std::unordered_map<std::string,std::vector<std::string>> structs;
+    std::unordered_set<std::string> events;
+    std::unordered_map<std::string,NativeFunction> natives;
+    std::string lastError,sourceName;
+    bool loaded=false,nativesSealed=false;
+    VekSecurityPolicy policy;
+    std::vector<std::string> moduleRoots;
     std::size_t instructionsRemaining=0,nativeCallsRemaining=0,callDepth=0,loopIterationsRemaining=0;
-    using Environment=std::unordered_map<std::string,VekValue>;enum class Flow{Normal,Return,Break,Continue};struct ExecResult{Flow flow=Flow::Normal;VekValue value;};
+    using Environment=std::unordered_map<std::string,VekValue>;
+    enum class Flow{Normal,Return,Break,Continue};
+    struct ExecResult{Flow flow=Flow::Normal;VekValue value;};
+
+    vek::DiagnosticHub diagnosticHub;
+    vek::DiagnosticRecord lastDiagnostic{};
+    vek::VekDebugger* debugger=nullptr;
+    std::vector<vek::DiagnosticFrame> callStack;
+    std::vector<vek::DiagnosticFrame> lastFailureStack;
+
     void ConsumeInstruction(){if(instructionsRemaining==0)throw std::runtime_error("VEK security: instruction budget exceeded");--instructionsRemaining;}
+    void PublishDiagnostic(const std::string& message, vek::DiagnosticSeverity severity=vek::DiagnosticSeverity::Error){
+        auto stack=lastFailureStack.empty()?callStack:lastFailureStack;
+        int line=stack.empty()?0:stack.back().line;
+        lastDiagnostic=vek::ClassifyDiagnosticMessage(message,sourceName,line,stack);
+        lastDiagnostic.severity=severity;
+        if(!stack.empty()) lastDiagnostic.function=stack.back().function;
+        lastDiagnostic=diagnosticHub.Publish(lastDiagnostic);
+        vek::VekCrashHandler::Instance().RecordDiagnostic(lastDiagnostic);
+        if(debugger) debugger->OnRuntimeError(lastDiagnostic);
+    }
+
     VekValue Eval(const Expr&e,Environment&env){ConsumeInstruction();switch(e.kind){
         case Expr::Kind::Literal:return e.literal;
         case Expr::Kind::Variable:{auto it=env.find(e.text);if(it==env.end())throw std::runtime_error("VEK runtime: unknown variable '"+e.text+"'");return it->second;}
         case Expr::Kind::Unary:{auto r=Eval(*e.right,env);if(e.op==TokenType::Bang)return VekValue(!r.Truthy());if(e.op==TokenType::Minus)return VekValue(-r.AsNumber());return {};}
         case Expr::Kind::Binary:{if(e.op==TokenType::AndAnd){auto l=Eval(*e.left,env);return l.Truthy()?VekValue(Eval(*e.right,env).Truthy()):VekValue(false);}if(e.op==TokenType::OrOr){auto l=Eval(*e.left,env);return l.Truthy()?VekValue(true):VekValue(Eval(*e.right,env).Truthy());}auto l=Eval(*e.left,env),r=Eval(*e.right,env);switch(e.op){case TokenType::Plus:if(l.IsString()||r.IsString())return VekValue(l.AsString()+r.AsString());return VekValue(l.AsNumber()+r.AsNumber());case TokenType::Minus:return VekValue(l.AsNumber()-r.AsNumber());case TokenType::Star:return VekValue(l.AsNumber()*r.AsNumber());case TokenType::Slash:{double d=r.AsNumber();if(std::fabs(d)<1e-12)throw std::runtime_error("VEK runtime: division by zero");return VekValue(l.AsNumber()/d);}case TokenType::Percent:{double d=r.AsNumber();if(std::fabs(d)<1e-12)throw std::runtime_error("VEK runtime: modulo by zero");return VekValue(std::fmod(l.AsNumber(),d));}case TokenType::EqualEqual:return VekValue(ValuesEqual(l,r));case TokenType::BangEqual:return VekValue(!ValuesEqual(l,r));case TokenType::Greater:return VekValue(l.AsNumber()>r.AsNumber());case TokenType::GreaterEqual:return VekValue(l.AsNumber()>=r.AsNumber());case TokenType::Less:return VekValue(l.AsNumber()<r.AsNumber());case TokenType::LessEqual:return VekValue(l.AsNumber()<=r.AsNumber());default:return {};}}
-        case Expr::Kind::Call:{std::vector<VekValue>a;a.reserve(e.args.size());for(auto&x:e.args)a.push_back(Eval(*x,env));auto n=natives.find(e.text);if(n!=natives.end()){if(nativeCallsRemaining==0)throw std::runtime_error("VEK security: native-call budget exceeded");--nativeCallsRemaining;return n->second(a);}return CallFunction(e.text,a);}
+        case Expr::Kind::Call:{std::vector<VekValue>a;a.reserve(e.args.size());for(auto&x:e.args)a.push_back(Eval(*x,env));auto n=natives.find(e.text);if(n!=natives.end()){if(nativeCallsRemaining==0)throw std::runtime_error("VEK security: native-call budget exceeded");--nativeCallsRemaining;try{return n->second(a);}catch(const std::exception& ex){throw std::runtime_error("VEK native '"+e.text+"': "+ex.what());}}return CallFunction(e.text,a);}
         case Expr::Kind::Array:{VekArray a;a.reserve(e.args.size());for(auto&x:e.args)a.push_back(Eval(*x,env));return VekValue(std::move(a));}
         case Expr::Kind::Object:{VekMap m;for(auto&f:e.fields)m[f.first]=Eval(*f.second,env);return VekValue(std::move(m));}
-        case Expr::Kind::Index:{auto base=Eval(*e.left,env),idx=Eval(*e.right,env);if(base.IsArray()){double n=idx.AsNumber(-1);if(n<0)return {};return base.Get((std::size_t)n);}if(base.IsMap())return base.Get(idx.AsString());if(base.IsString()){auto s=base.AsString();auto n=(std::size_t)std::max(0.0,idx.AsNumber());return n<s.size()?VekValue(std::string(1,s[n])):VekValue();}return {};}
+        case Expr::Kind::Index:{auto base=Eval(*e.left,env),idx=Eval(*e.right,env);if(base.IsArray()){double n=idx.AsNumber(-1);if(n<0)return {};return base.Get((std::size_t)n);}if(base.IsMap())return base.Get(idx.AsString());if(base.IsString()){auto text=base.AsString();auto n=(std::size_t)std::max(0.0,idx.AsNumber());return n<text.size()?VekValue(std::string(1,text[n])):VekValue();}return {};}
         case Expr::Kind::Member:{auto base=Eval(*e.left,env);return base.Get(e.text);}
         case Expr::Kind::StructInit:{auto it=structs.find(e.text);if(it==structs.end())throw std::runtime_error("VEK runtime: unknown struct '"+e.text+"'");VekMap m;m["__type"]=VekValue(e.text);for(auto&field:it->second)m[field]=VekValue();for(auto&f:e.fields){if(std::find(it->second.begin(),it->second.end(),f.first)==it->second.end())throw std::runtime_error("VEK runtime: struct '"+e.text+"' has no field '"+f.first+"'");m[f.first]=Eval(*f.second,env);}return VekValue(std::move(m));}
     }return {};}
-    ExecResult ExecuteBlock(const std::vector<Stmt>&body,Environment&env,bool inLoop=false){for(auto&s:body){ConsumeInstruction();switch(s.kind){case Stmt::Kind::Expression:Eval(*s.expression,env);break;case Stmt::Kind::Let:env[s.name]=Eval(*s.expression,env);break;case Stmt::Kind::Assign:{auto it=env.find(s.name);if(it==env.end())throw std::runtime_error("VEK runtime: assignment to unknown variable '"+s.name+"'");it->second=Eval(*s.expression,env);break;}case Stmt::Kind::If:{auto r=ExecuteBlock(Eval(*s.expression,env).Truthy()?s.thenBranch:s.elseBranch,env,inLoop);if(r.flow!=Flow::Normal)return r;break;}case Stmt::Kind::While:while(Eval(*s.expression,env).Truthy()){if(loopIterationsRemaining==0)throw std::runtime_error("VEK security: loop iteration budget exceeded");--loopIterationsRemaining;auto r=ExecuteBlock(s.thenBranch,env,true);if(r.flow==Flow::Return)return r;if(r.flow==Flow::Break)break;if(r.flow==Flow::Continue)continue;}break;case Stmt::Kind::Break:if(!inLoop)throw std::runtime_error("VEK runtime: break outside loop");return {Flow::Break,{}};case Stmt::Kind::Continue:if(!inLoop)throw std::runtime_error("VEK runtime: continue outside loop");return {Flow::Continue,{}};case Stmt::Kind::Return:{ExecResult r;r.flow=Flow::Return;if(s.expression)r.value=Eval(*s.expression,env);return r;}}}return {};}
-    VekValue CallFunction(const std::string&name,const std::vector<VekValue>&args){if(callDepth>=policy.maxCallDepth)throw std::runtime_error("VEK security: maximum call depth exceeded");auto it=functions.find(name);if(it==functions.end())throw std::runtime_error("VEK runtime: unknown function '"+name+"'");if(args.size()!=it->second.params.size())throw std::runtime_error("VEK runtime: function '"+name+"' expected "+std::to_string(it->second.params.size())+" args, received "+std::to_string(args.size()));++callDepth;struct Guard{std::size_t&d;~Guard(){--d;}}g{callDepth};Environment env;for(std::size_t i=0;i<args.size();++i)env[it->second.params[i]]=args[i];return ExecuteBlock(it->second.body,env).value;}
+
+    ExecResult ExecuteBlock(const std::vector<Stmt>&body,Environment&env,bool inLoop=false){
+        for(auto&s:body){
+            ConsumeInstruction();
+            if(!callStack.empty()) callStack.back().line=s.line;
+            if(debugger && !callStack.empty() && debugger->OnStatement(callStack.back().function,sourceName,s.line)) throw DebugPauseSignal{};
+            switch(s.kind){
+                case Stmt::Kind::Expression:Eval(*s.expression,env);break;
+                case Stmt::Kind::Let:env[s.name]=Eval(*s.expression,env);break;
+                case Stmt::Kind::Assign:{auto it=env.find(s.name);if(it==env.end())throw std::runtime_error("VEK runtime: assignment to unknown variable '"+s.name+"'");it->second=Eval(*s.expression,env);break;}
+                case Stmt::Kind::If:{auto r=ExecuteBlock(Eval(*s.expression,env).Truthy()?s.thenBranch:s.elseBranch,env,inLoop);if(r.flow!=Flow::Normal)return r;break;}
+                case Stmt::Kind::While:{while(Eval(*s.expression,env).Truthy()){if(loopIterationsRemaining==0)throw std::runtime_error("VEK security: loop iteration budget exceeded");--loopIterationsRemaining;auto r=ExecuteBlock(s.thenBranch,env,true);if(r.flow==Flow::Return)return r;if(r.flow==Flow::Break)break;if(r.flow==Flow::Continue)continue;}break;}
+                case Stmt::Kind::ForEach:{
+                    VekValue iterable=Eval(*s.expression,env);
+                    std::vector<VekValue> values;
+                    if(auto*a=iterable.AsArray()) values=*a;
+                    else if(auto*m=iterable.AsMap()){std::vector<std::string> keys;keys.reserve(m->size());for(auto&kv:*m)keys.push_back(kv.first);std::sort(keys.begin(),keys.end());for(auto&k:keys)values.push_back(m->at(k));}
+                    else if(iterable.IsString()){for(char c:iterable.AsString())values.emplace_back(std::string(1,c));}
+                    else throw std::runtime_error("VEK runtime: 'for ... in' expects array, map, or string");
+                    for(auto&v:values){if(loopIterationsRemaining==0)throw std::runtime_error("VEK security: loop iteration budget exceeded");--loopIterationsRemaining;env[s.name]=v;auto r=ExecuteBlock(s.thenBranch,env,true);if(r.flow==Flow::Return)return r;if(r.flow==Flow::Break)break;if(r.flow==Flow::Continue)continue;}
+                    break;
+                }
+                case Stmt::Kind::TryCatch:{try{auto r=ExecuteBlock(s.thenBranch,env,inLoop);if(r.flow!=Flow::Normal)return r;}catch(const ScriptThrown&t){env[s.name]=t.value;auto r=ExecuteBlock(s.elseBranch,env,inLoop);if(r.flow!=Flow::Normal)return r;}break;}
+                case Stmt::Kind::Throw:throw ScriptThrown{Eval(*s.expression,env)};
+                case Stmt::Kind::Break:if(!inLoop)throw std::runtime_error("VEK runtime: break outside loop");return {Flow::Break,{}};
+                case Stmt::Kind::Continue:if(!inLoop)throw std::runtime_error("VEK runtime: continue outside loop");return {Flow::Continue,{}};
+                case Stmt::Kind::Return:{ExecResult r;r.flow=Flow::Return;if(s.expression)r.value=Eval(*s.expression,env);return r;}
+            }
+        }
+        return {};
+    }
+
+    VekValue CallFunction(const std::string&name,const std::vector<VekValue>&args){
+        if(callDepth>=policy.maxCallDepth)throw std::runtime_error("VEK security: maximum call depth exceeded");
+        auto it=functions.find(name);if(it==functions.end())throw std::runtime_error("VEK runtime: unknown function '"+name+"'");
+        if(args.size()!=it->second.params.size())throw std::runtime_error("VEK runtime: function '"+name+"' expected "+std::to_string(it->second.params.size())+" args, received "+std::to_string(args.size()));
+        ++callDepth;
+        callStack.push_back({name,sourceName,it->second.line});
+        struct Guard{Impl*self;std::string fn;int line;~Guard(){if(self->debugger)self->debugger->OnFunctionExit(fn,self->sourceName,line);if(!self->callStack.empty())self->callStack.pop_back();--self->callDepth;}}guard{this,name,it->second.line};
+        if(debugger && debugger->OnFunctionEnter(name,sourceName,it->second.line)) throw DebugPauseSignal{};
+        Environment env;for(std::size_t i=0;i<args.size();++i)env[it->second.params[i]]=args[i];
+        try{return ExecuteBlock(it->second.body,env).value;}catch(...){if(callStack.size()>lastFailureStack.size())lastFailureStack=callStack;throw;}
+    }
 
     fs::path ResolveImport(const std::string&spec,const fs::path&currentDir){
         if(spec.empty()||fs::path(spec).is_absolute()||spec.find(':')!=std::string::npos)throw std::runtime_error("VEK security: absolute/drive module paths are forbidden");
@@ -220,22 +294,73 @@ struct VekScriptEngine::Impl {
         if(depth>policy.maxImportDepth)throw std::runtime_error("VEK security: import depth exceeded");std::error_code ec;auto canonical=fs::weakly_canonical(path,ec);if(ec)throw std::runtime_error("VEK module: invalid path");std::string key=canonical.generic_string();if(seen.count(key))return "";if(seen.size()>=policy.maxModuleCount)throw std::runtime_error("VEK security: module count exceeded");seen.insert(key);std::ifstream in(canonical,std::ios::binary);if(!in)throw std::runtime_error("VEK module: cannot open "+key);std::ostringstream raw;raw<<in.rdbuf();if(raw.str().size()>policy.maxSourceBytes)throw std::runtime_error("VEK security: module source exceeds limit");std::istringstream lines(raw.str());std::ostringstream out;std::string line;while(std::getline(lines,line)){std::string spec;if(ParseImportLine(line,spec)){auto module=ResolveImport(spec,canonical.parent_path());out<<ExpandFile(module,seen,depth+1)<<"\n";}else out<<line<<"\n";}return out.str();}
 };
 
-VekScriptEngine::VekScriptEngine():impl(std::make_unique<Impl>()){}VekScriptEngine::~VekScriptEngine()=default;VekScriptEngine::VekScriptEngine(VekScriptEngine&&)noexcept=default;VekScriptEngine&VekScriptEngine::operator=(VekScriptEngine&&)noexcept=default;
-bool VekScriptEngine::LoadFile(const std::string&path){try{std::unordered_set<std::string>seen;std::string source=impl->ExpandFile(path,seen,0);return LoadSource(source,path);}catch(const std::exception&e){impl->lastError=e.what();impl->loaded=false;return false;}}
-bool VekScriptEngine::LoadSource(const std::string&source,const std::string&name){try{if(source.size()>impl->policy.maxSourceBytes*std::max<std::size_t>(1,impl->policy.maxModuleCount))throw std::runtime_error("VEK security: expanded source exceeds configured limit");Lexer l(source,impl->policy);Parser p(l.Scan(),impl->policy);auto program=p.ParseProgram();impl->functions=std::move(program.functions);impl->structs=std::move(program.structs);impl->events=std::move(program.events);impl->sourceName=name;impl->lastError.clear();impl->loaded=true;return true;}catch(const std::exception&e){impl->functions.clear();impl->structs.clear();impl->events.clear();impl->sourceName=name;impl->lastError=e.what();impl->loaded=false;return false;}}
-void VekScriptEngine::Clear(){impl->functions.clear();impl->structs.clear();impl->events.clear();impl->lastError.clear();impl->sourceName.clear();impl->loaded=false;}
-void VekScriptEngine::SetSecurityPolicy(const VekSecurityPolicy&p){impl->policy=p;}const VekSecurityPolicy&VekScriptEngine::GetSecurityPolicy()const{return impl->policy;}
-void VekScriptEngine::SetModuleRoots(std::vector<std::string>roots){impl->moduleRoots=std::move(roots);}const std::vector<std::string>&VekScriptEngine::GetModuleRoots()const{return impl->moduleRoots;}
+VekScriptEngine::VekScriptEngine():impl(std::make_unique<Impl>()){}
+VekScriptEngine::~VekScriptEngine()=default;
+VekScriptEngine::VekScriptEngine(VekScriptEngine&&)noexcept=default;
+VekScriptEngine&VekScriptEngine::operator=(VekScriptEngine&&)noexcept=default;
+
+bool VekScriptEngine::LoadFile(const std::string&path){
+    try{
+        impl->lastFailureStack.clear();
+        std::unordered_set<std::string>seen;
+        std::string source=impl->ExpandFile(path,seen,0);
+        return LoadSource(source,path);
+    }catch(const std::exception&e){
+        impl->sourceName=path;impl->lastError=e.what();impl->loaded=false;impl->PublishDiagnostic(impl->lastError);return false;
+    }
+}
+bool VekScriptEngine::LoadSource(const std::string&source,const std::string&name){
+    try{
+        impl->lastFailureStack.clear();
+        if(source.size()>impl->policy.maxSourceBytes*std::max<std::size_t>(1,impl->policy.maxModuleCount))throw std::runtime_error("VEK security: expanded source exceeds configured limit");
+        Lexer l(source,impl->policy);Parser p(l.Scan(),impl->policy);auto program=p.ParseProgram();
+        impl->functions=std::move(program.functions);impl->structs=std::move(program.structs);impl->events=std::move(program.events);
+        impl->sourceName=name;impl->lastError.clear();impl->loaded=true;return true;
+    }catch(const std::exception&e){
+        impl->functions.clear();impl->structs.clear();impl->events.clear();impl->sourceName=name;impl->lastError=e.what();impl->loaded=false;impl->PublishDiagnostic(impl->lastError);return false;
+    }
+}
+void VekScriptEngine::Clear(){impl->functions.clear();impl->structs.clear();impl->events.clear();impl->lastError.clear();impl->sourceName.clear();impl->loaded=false;impl->callStack.clear();impl->lastFailureStack.clear();}
+void VekScriptEngine::SetSecurityPolicy(const VekSecurityPolicy&p){impl->policy=p;}
+const VekSecurityPolicy&VekScriptEngine::GetSecurityPolicy()const{return impl->policy;}
+void VekScriptEngine::SetModuleRoots(std::vector<std::string>roots){impl->moduleRoots=std::move(roots);}
+const std::vector<std::string>&VekScriptEngine::GetModuleRoots()const{return impl->moduleRoots;}
 bool VekScriptEngine::RegisterNative(const std::string&n,NativeFunction f){
-    if(impl->nativesSealed){impl->lastError="VEK security: native registry is sealed";return false;}
-    if(n.empty()||n.size()>128){impl->lastError="VEK security: invalid native name";return false;}
-    for(unsigned char c:n)if(!(std::isalnum(c)||c=='_')){impl->lastError="VEK security: invalid native name";return false;}
-    if(impl->natives.count(n)){impl->lastError="VEK security: duplicate native registration rejected: "+n;return false;}
+    if(impl->nativesSealed){impl->lastError="VEK security: native registry is sealed";impl->PublishDiagnostic(impl->lastError);return false;}
+    if(n.empty()||n.size()>128){impl->lastError="VEK security: invalid native name";impl->PublishDiagnostic(impl->lastError);return false;}
+    for(unsigned char c:n)if(!(std::isalnum(c)||c=='_')){impl->lastError="VEK security: invalid native name";impl->PublishDiagnostic(impl->lastError);return false;}
+    if(impl->natives.count(n)){impl->lastError="VEK security: duplicate native registration rejected: "+n;impl->PublishDiagnostic(impl->lastError);return false;}
     impl->natives.emplace(n,std::move(f));return true;
-}void VekScriptEngine::SealNativeRegistry(){impl->nativesSealed=true;}bool VekScriptEngine::NativeRegistrySealed()const{return impl->nativesSealed;}
-bool VekScriptEngine::HasFunction(const std::string&n)const{return impl->functions.count(n)!=0;}bool VekScriptEngine::HasEvent(const std::string&n)const{return impl->events.count(n)!=0;}
-VekValue VekScriptEngine::Call(const std::string&n,const std::vector<VekValue>&args){try{impl->lastError.clear();if(args.size()>impl->policy.maxArgumentsPerCall)throw std::runtime_error("VEK security: top-level argument limit exceeded");impl->instructionsRemaining=impl->policy.maxInstructionsPerCall;impl->nativeCallsRemaining=impl->policy.maxNativeCallsPerCall;impl->loopIterationsRemaining=impl->policy.maxLoopIterationsPerCall;impl->callDepth=0;return impl->CallFunction(n,args);}catch(const std::exception&e){impl->lastError=e.what();return {};}}
-VekValue VekScriptEngine::EmitEvent(const std::string&n,const std::vector<VekValue>&args){return Call("__event_"+n,args);}bool VekScriptEngine::IsLoaded()const{return impl->loaded;}const std::string&VekScriptEngine::LastError()const{return impl->lastError;}const std::string&VekScriptEngine::SourceName()const{return impl->sourceName;}
+}
+void VekScriptEngine::SealNativeRegistry(){impl->nativesSealed=true;}
+bool VekScriptEngine::NativeRegistrySealed()const{return impl->nativesSealed;}
+void VekScriptEngine::SetDebugger(vek::VekDebugger*d){impl->debugger=d;}
+vek::VekDebugger* VekScriptEngine::GetDebugger()const{return impl->debugger;}
+void VekScriptEngine::SetDiagnosticSink(vek::DiagnosticHub::Sink sink){impl->diagnosticHub.SetSink(std::move(sink));}
+const vek::DiagnosticRecord& VekScriptEngine::LastDiagnostic()const{return impl->lastDiagnostic;}
+std::vector<vek::DiagnosticRecord> VekScriptEngine::Diagnostics()const{return impl->diagnosticHub.Snapshot();}
+void VekScriptEngine::ClearDiagnostics(){impl->diagnosticHub.Clear();impl->lastDiagnostic={};}
+bool VekScriptEngine::HasFunction(const std::string&n)const{return impl->functions.count(n)!=0;}
+bool VekScriptEngine::HasEvent(const std::string&n)const{return impl->events.count(n)!=0;}
+VekValue VekScriptEngine::Call(const std::string&n,const std::vector<VekValue>&args){
+    try{
+        impl->lastError.clear();impl->lastFailureStack.clear();impl->callStack.clear();
+        if(args.size()>impl->policy.maxArgumentsPerCall)throw std::runtime_error("VEK security: top-level argument limit exceeded");
+        impl->instructionsRemaining=impl->policy.maxInstructionsPerCall;impl->nativeCallsRemaining=impl->policy.maxNativeCallsPerCall;impl->loopIterationsRemaining=impl->policy.maxLoopIterationsPerCall;impl->callDepth=0;
+        return impl->CallFunction(n,args);
+    }catch(const Impl::DebugPauseSignal&){
+        impl->lastError="VEK debugger: paused at function '"+(impl->debugger?impl->debugger->PausedFunction():n)+"'";
+        return {};
+    }catch(const Impl::ScriptThrown&t){
+        impl->lastError="VEK runtime: uncaught throw: "+t.value.AsString();impl->PublishDiagnostic(impl->lastError);return {};
+    }catch(const std::exception&e){
+        impl->lastError=e.what();impl->PublishDiagnostic(impl->lastError);return {};
+    }
+}
+VekValue VekScriptEngine::EmitEvent(const std::string&n,const std::vector<VekValue>&args){return Call("__event_"+n,args);}
+bool VekScriptEngine::IsLoaded()const{return impl->loaded;}
+const std::string&VekScriptEngine::LastError()const{return impl->lastError;}
+const std::string&VekScriptEngine::SourceName()const{return impl->sourceName;}
 
 void VekRegisterStandardLibrary(VekScriptEngine&e){
     e.RegisterNative("print",[](const std::vector<VekValue>&a){for(auto&v:a)std::cout<<v.AsString();return VekValue();});
@@ -251,4 +376,24 @@ void VekRegisterStandardLibrary(VekScriptEngine&e){
     e.RegisterNative("map_get",[](const std::vector<VekValue>&a){return a.size()<2?VekValue():a[0].Get(a[1].AsString());});
     e.RegisterNative("vec3",[](const std::vector<VekValue>&a){VekMap m;m["x"]=a.size()>0?a[0]:VekValue(0);m["y"]=a.size()>1?a[1]:VekValue(0);m["z"]=a.size()>2?a[2]:VekValue(0);return VekValue(std::move(m));});
     e.RegisterNative("rgba",[](const std::vector<VekValue>&a){VekMap m;m["r"]=a.size()>0?a[0]:VekValue(0);m["g"]=a.size()>1?a[1]:VekValue(0);m["b"]=a.size()>2?a[2]:VekValue(0);m["a"]=a.size()>3?a[3]:VekValue(255);return VekValue(std::move(m));});
+    e.RegisterNative("error",[](const std::vector<VekValue>&a){VekMap m;m["__type"]="Error";m["code"]=a.size()>0?a[0]:VekValue("VEK_USER_ERROR");m["message"]=a.size()>1?a[1]:VekValue("VEK user error");m["data"]=a.size()>2?a[2]:VekValue::Map();return VekValue(std::move(m));});
+    e.RegisterNative("is_error",[](const std::vector<VekValue>&a){return VekValue(!a.empty()&&a[0].IsMap()&&a[0].Get("__type").AsString()=="Error");});
+    e.RegisterNative("assert",[](const std::vector<VekValue>&a){if(a.empty()||!a[0].Truthy())throw std::runtime_error(a.size()>1?a[1].AsString():"VEK assertion failed");return VekValue(true);});
+    e.RegisterNative("array_get",[](const std::vector<VekValue>&a){if(a.size()<2||!a[0].IsArray())return VekValue();double i=a[1].AsNumber(-1);return i<0?VekValue():a[0].Get((std::size_t)i);});
+    e.RegisterNative("array_set",[](const std::vector<VekValue>&a){if(a.size()<3||!a[0].IsArray())return VekValue(false);double i=a[1].AsNumber(-1);if(i<0)return VekValue(false);VekValue x=a[0];return VekValue(x.Set((std::size_t)i,a[2]));});
+    e.RegisterNative("array_pop",[](const std::vector<VekValue>&a){if(a.empty()||!a[0].IsArray())return VekValue();VekValue x=a[0];auto*p=x.AsArray();if(!p||p->empty())return VekValue();VekValue v=p->back();p->pop_back();return v;});
+    e.RegisterNative("map_keys",[](const std::vector<VekValue>&a){VekArray out;if(a.empty()||!a[0].IsMap())return VekValue(std::move(out));auto*m=a[0].AsMap();std::vector<std::string>keys;for(auto&kv:*m)keys.push_back(kv.first);std::sort(keys.begin(),keys.end());for(auto&k:keys)out.emplace_back(k);return VekValue(std::move(out));});
+    e.RegisterNative("contains",[](const std::vector<VekValue>&a){if(a.size()<2)return VekValue(false);if(a[0].IsString())return VekValue(a[0].AsString().find(a[1].AsString())!=std::string::npos);if(auto*arr=a[0].AsArray()){for(auto&v:*arr)if(ValuesEqual(v,a[1]))return VekValue(true);}if(auto*m=a[0].AsMap())return VekValue(m->count(a[1].AsString())!=0);return VekValue(false);});
+    e.RegisterNative("upper",[](const std::vector<VekValue>&a){std::string s=a.empty()?"":a[0].AsString();std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return(char)std::toupper(c);});return VekValue(std::move(s));});
+    e.RegisterNative("lower",[](const std::vector<VekValue>&a){std::string s=a.empty()?"":a[0].AsString();std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return(char)std::tolower(c);});return VekValue(std::move(s));});
+    e.RegisterNative("substring",[](const std::vector<VekValue>&a){if(a.empty())return VekValue("");std::string s=a[0].AsString();std::size_t start=(std::size_t)std::max(0.0,a.size()>1?a[1].AsNumber():0.0);std::size_t count=a.size()>2?(std::size_t)std::max(0.0,a[2].AsNumber()):std::string::npos;if(start>=s.size())return VekValue("");return VekValue(s.substr(start,count));});
+    e.RegisterNative("starts_with",[](const std::vector<VekValue>&a){if(a.size()<2)return VekValue(false);auto s=a[0].AsString(),p=a[1].AsString();return VekValue(s.rfind(p,0)==0);});
+    e.RegisterNative("ends_with",[](const std::vector<VekValue>&a){if(a.size()<2)return VekValue(false);auto s=a[0].AsString(),p=a[1].AsString();return VekValue(p.size()<=s.size()&&s.compare(s.size()-p.size(),p.size(),p)==0);});
+    e.RegisterNative("sin",[](const std::vector<VekValue>&a){return VekValue(std::sin(a.at(0).AsNumber()));});
+    e.RegisterNative("cos",[](const std::vector<VekValue>&a){return VekValue(std::cos(a.at(0).AsNumber()));});
+    e.RegisterNative("tan",[](const std::vector<VekValue>&a){return VekValue(std::tan(a.at(0).AsNumber()));});
+    e.RegisterNative("log",[](const std::vector<VekValue>&a){double x=a.at(0).AsNumber();if(x<=0)throw std::runtime_error("log domain error");return VekValue(std::log(x));});
+    e.RegisterNative("exp",[](const std::vector<VekValue>&a){return VekValue(std::exp(a.at(0).AsNumber()));});
+    e.RegisterNative("lerp",[](const std::vector<VekValue>&a){double x=a.at(0).AsNumber(),y=a.at(1).AsNumber(),t=a.at(2).AsNumber();return VekValue(x+(y-x)*t);});
+    e.RegisterNative("time_ms",[](const std::vector<VekValue>&){auto n=std::chrono::steady_clock::now().time_since_epoch();return VekValue((double)std::chrono::duration_cast<std::chrono::milliseconds>(n).count());});
 }

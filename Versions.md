@@ -1,5 +1,19 @@
 # VEK Versions
 
+## VEK 2.7.0
+
+- Added structured VEK diagnostics with stable domains/codes, source lines and VEK call stacks.
+- Added `VekDebugger` with function and line breakpoints, pause/continue behavior and bounded trace history.
+- Added append-only `VekCrashHandler`, terminate handling and Windows unhandled-exception reports.
+- Added CLI `vek diagnose` and `vek trace`.
+- Added `for ... in`, explicit `throw`, `try/catch`, and block comments to the VEK language.
+- Expanded the standard library with collection, string, math, assertion and timing helpers.
+- Added FPS/1%-low/frame-time tracking, GPU capability/budget reporting, runtime profiler, GUI definition and gameplay definition registries.
+- Advanced Physics Definitions to v0.3: CCD, contacts, articulations, ragdolls, IK, particles, fluids, destruction, tires/suspension, scene queries, LOD and physics events.
+- Preserved `physics_v02_*` source compatibility while adding generic `physics_*` natives.
+- Extended the C ABI with diagnostics/debugger/crash APIs.
+- Added Go and Java 22+ host-language bindings alongside C/C++, Python, Rust, Node and C#.
+
 ## VEK 2.6.1
 
 - Hardened authoritative-request validation with sealed capability manifests and authenticated session-to-actor binding.

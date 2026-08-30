@@ -1,5 +1,6 @@
 #include <vek/VekScriptEngine.h>
 #include <vek/VekGameSystems.h>
+#include <vek/VekDiagnosticsSystems.h>
 
 #include <algorithm>
 #include <array>
@@ -158,6 +159,7 @@ void maybeLaunchAutoUpdate(const fs::path& home) {
 
 
 static int runFile(const std::string& path) {
+    vek::VekCrashHandler::Instance().SetStage("run:" + path);
     VekScriptEngine vm;
     VekRegisterStandardLibrary(vm);
     vek::VekRegisterGameplayLibrary(vm);
@@ -170,9 +172,40 @@ static int runFile(const std::string& path) {
 }
 
 static int checkFile(const std::string& path) {
+    vek::VekCrashHandler::Instance().SetStage("check:" + path);
     VekScriptEngine vm;
     if (!vm.LoadFile(path)) { std::cerr << vm.LastError() << "\n"; return 2; }
     std::cout << "OK: " << path << "\n";
+    return 0;
+}
+
+static int traceFile(const std::string& path) {
+    vek::VekCrashHandler::Instance().SetStage("trace:" + path);
+    VekScriptEngine vm; VekRegisterStandardLibrary(vm); vek::VekRegisterGameplayLibrary(vm);
+    vek::VekDebugger debugger; debugger.Attach(true); debugger.SetTraceCapacity(4096); vm.SetDebugger(&debugger);
+    if (!vm.LoadFile(path)) { std::cerr << vek::FormatDiagnostic(vm.LastDiagnostic(), true) << "\n"; return 2; }
+    if (!vm.HasFunction("main")) { std::cerr << "VEK: program has no fn main()\n"; return 3; }
+    auto result=vm.Call("main");
+    if (!vm.LastError().empty()) std::cerr << vek::FormatDiagnostic(vm.LastDiagnostic(), true) << "\n";
+    for (const auto& e : debugger.TraceSnapshot()) {
+        std::cout << "[" << e.sequence << "] " << e.kind << " " << e.function;
+        if (e.line > 0) std::cout << ":" << e.line;
+        if (!e.detail.empty()) std::cout << " - " << e.detail;
+        std::cout << "\n";
+    }
+    if (!result.IsNil()) std::cout << "result: " << result.AsString() << "\n";
+    return vm.LastError().empty()?0:4;
+}
+
+static int diagnoseFile(const std::string& path) {
+    VekScriptEngine vm; VekRegisterStandardLibrary(vm); vek::VekRegisterGameplayLibrary(vm);
+    if (!vm.LoadFile(path)) { std::cerr << vek::FormatDiagnostic(vm.LastDiagnostic(), true) << "\n"; return 2; }
+    std::cout << "VEK diagnostics: parse/load OK\n";
+    if (vm.HasFunction("main")) {
+        vm.Call("main");
+        if (!vm.LastError().empty()) { std::cerr << vek::FormatDiagnostic(vm.LastDiagnostic(), true) << "\n"; return 4; }
+        std::cout << "VEK diagnostics: main() completed without runtime errors\n";
+    }
     return 0;
 }
 
@@ -475,6 +508,8 @@ void usage() {
         << "  vek verify                 Verify portable package files\n"
         << "  vek run <file.vek>         Run a VEK program\n"
         << "  vek check <file.vek>       Parse/check a VEK program\n"
+        << "  vek diagnose <file.vek>    Run with structured diagnostics\n"
+        << "  vek trace <file.vek>       Run and print debugger trace\n"
         << "  vek eval <expression>      Evaluate an expression\n"
         << "  vek repl                   Start the REPL\n";
 }
@@ -484,6 +519,9 @@ void usage() {
 int main(int argc, char** argv) {
     const fs::path exe = executablePath(argc > 0 ? argv[0] : "vek");
     const fs::path home = discoverVekHome(exe);
+    auto& crashHandler = vek::VekCrashHandler::Instance();
+    crashHandler.SetContext({"VEK CLI", VEK_VERSION_STRING, "cli", "startup", "", "Use `vek diagnose` or `vek trace` for script-level failures."});
+    crashHandler.Install("vek_crashlogs.txt");
     maybeLaunchAutoUpdate(home);
 
     if (argc < 2) { usage(); return 0; }
@@ -497,6 +535,8 @@ int main(int argc, char** argv) {
     if (cmd == "repl") return repl();
     if (cmd == "run" && argc >= 3) return runFile(argv[2]);
     if (cmd == "check" && argc >= 3) return checkFile(argv[2]);
+    if (cmd == "diagnose" && argc >= 3) return diagnoseFile(argv[2]);
+    if (cmd == "trace" && argc >= 3) return traceFile(argv[2]);
     if (cmd == "eval" && argc >= 3) return evalExpr(argv[2]);
     if (cmd == "help" || cmd == "--help" || cmd == "-h") { usage(); return 0; }
     std::cerr << "Invalid VEK command. Run 'vek --help'.\n";

@@ -8,11 +8,12 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <vek/VekDiagnosticsSystems.h>
 
 #define VEK_VERSION_MAJOR 2
-#define VEK_VERSION_MINOR 6
-#define VEK_VERSION_PATCH 1
-#define VEK_VERSION_STRING "2.6.1"
+#define VEK_VERSION_MINOR 7
+#define VEK_VERSION_PATCH 0
+#define VEK_VERSION_STRING "2.7.0"
 
 class VekValue;
 using VekArray = std::vector<VekValue>;
@@ -108,6 +109,15 @@ public:
     bool RegisterNative(const std::string& name, NativeFunction function);
     void SealNativeRegistry();
     bool NativeRegistrySealed() const;
+
+    // Structured diagnostics and debugger hooks (VEK 2.7). The VM never owns
+    // the debugger pointer; embedders can attach/detach one at runtime.
+    void SetDebugger(vek::VekDebugger* debugger);
+    vek::VekDebugger* GetDebugger() const;
+    void SetDiagnosticSink(vek::DiagnosticHub::Sink sink);
+    const vek::DiagnosticRecord& LastDiagnostic() const;
+    std::vector<vek::DiagnosticRecord> Diagnostics() const;
+    void ClearDiagnostics();
 
     bool HasFunction(const std::string& name) const;
     bool HasEvent(const std::string& name) const;

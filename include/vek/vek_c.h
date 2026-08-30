@@ -39,6 +39,21 @@ VEK_C_API vek_value vek_emit_event(vek_runtime* runtime, const char* event_name,
 VEK_C_API int vek_has_function(vek_runtime* runtime, const char* function_name);
 VEK_C_API int vek_has_event(vek_runtime* runtime, const char* event_name);
 VEK_C_API const char* vek_last_error(vek_runtime* runtime);
+VEK_C_API const char* vek_last_diagnostic_code(vek_runtime* runtime);
+VEK_C_API const char* vek_last_diagnostic_text(vek_runtime* runtime);
+VEK_C_API size_t vek_diagnostic_count(vek_runtime* runtime);
+VEK_C_API int vek_debugger_attach(vek_runtime* runtime, int enabled);
+VEK_C_API int vek_debugger_add_function_breakpoint(vek_runtime* runtime, const char* function_name);
+VEK_C_API int vek_debugger_remove_function_breakpoint(vek_runtime* runtime, const char* function_name);
+VEK_C_API int vek_debugger_add_line_breakpoint(vek_runtime* runtime, const char* source_name, int line);
+VEK_C_API int vek_debugger_remove_line_breakpoint(vek_runtime* runtime, const char* source_name, int line);
+VEK_C_API void vek_debugger_continue(vek_runtime* runtime);
+VEK_C_API int vek_debugger_is_paused(vek_runtime* runtime);
+VEK_C_API const char* vek_debugger_paused_function(vek_runtime* runtime);
+VEK_C_API const char* vek_debugger_trace_json(vek_runtime* runtime);
+VEK_C_API int vek_install_crash_handler(vek_runtime* runtime, const char* path, const char* product, const char* build);
+VEK_C_API void vek_set_crash_stage(vek_runtime* runtime, const char* stage);
+VEK_C_API int vek_write_crash_report(vek_runtime* runtime, const char* reason);
 VEK_C_API const char* vek_version(void);
 
 #ifdef __cplusplus

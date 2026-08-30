@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	version     = "2.6.1"
+	version     = "2.7.0"
 	targetDir   = `C:\vek`
 	defaultRepo = "https://github.com/defnot67kid-beep/vek.git"
 

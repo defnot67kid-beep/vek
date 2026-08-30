@@ -16,6 +16,13 @@ class Runtime:
         self.lib=_load(); self.lib.vek_create.restype=ctypes.c_void_p
         self.lib.vek_destroy.argtypes=[ctypes.c_void_p]; self.lib.vek_destroy.restype=None
         self.lib.vek_last_error.argtypes=[ctypes.c_void_p]; self.lib.vek_last_error.restype=ctypes.c_char_p
+        self.lib.vek_last_diagnostic_text.argtypes=[ctypes.c_void_p]; self.lib.vek_last_diagnostic_text.restype=ctypes.c_char_p
+        self.lib.vek_debugger_attach.argtypes=[ctypes.c_void_p,ctypes.c_int]; self.lib.vek_debugger_attach.restype=ctypes.c_int
+        self.lib.vek_debugger_add_function_breakpoint.argtypes=[ctypes.c_void_p,ctypes.c_char_p]; self.lib.vek_debugger_add_function_breakpoint.restype=ctypes.c_int
+        self.lib.vek_debugger_continue.argtypes=[ctypes.c_void_p]; self.lib.vek_debugger_continue.restype=None
+        self.lib.vek_debugger_is_paused.argtypes=[ctypes.c_void_p]; self.lib.vek_debugger_is_paused.restype=ctypes.c_int
+        self.lib.vek_debugger_trace_json.argtypes=[ctypes.c_void_p]; self.lib.vek_debugger_trace_json.restype=ctypes.c_char_p
+        self.lib.vek_install_crash_handler.argtypes=[ctypes.c_void_p,ctypes.c_char_p,ctypes.c_char_p,ctypes.c_char_p]; self.lib.vek_install_crash_handler.restype=ctypes.c_int
         self.lib.vek_load_file.argtypes=[ctypes.c_void_p,ctypes.c_char_p]; self.lib.vek_load_file.restype=ctypes.c_int
         self.lib.vek_set_security_tier.argtypes=[ctypes.c_void_p,ctypes.c_int]; self.lib.vek_set_security_tier.restype=ctypes.c_int
         self.lib.vek_set_authority_role.argtypes=[ctypes.c_void_p,ctypes.c_int]; self.lib.vek_set_authority_role.restype=ctypes.c_int
@@ -26,6 +33,19 @@ class Runtime:
         if not self._r: raise RuntimeError("VEK runtime creation failed")
     @property
     def last_error(self): return (self.lib.vek_last_error(self._r) or b"").decode()
+    @property
+    def last_diagnostic(self): return (self.lib.vek_last_diagnostic_text(self._r) or b"").decode()
+    def attach_debugger(self,enabled=True):
+        if not self.lib.vek_debugger_attach(self._r,int(bool(enabled))): raise RuntimeError("VEK debugger attach failed")
+    def add_breakpoint(self,function):
+        if not self.lib.vek_debugger_add_function_breakpoint(self._r,str(function).encode()): raise RuntimeError("VEK breakpoint failed")
+    def continue_debugger(self): self.lib.vek_debugger_continue(self._r)
+    @property
+    def debugger_paused(self): return bool(self.lib.vek_debugger_is_paused(self._r))
+    @property
+    def debugger_trace_json(self): return (self.lib.vek_debugger_trace_json(self._r) or b"[]").decode()
+    def install_crash_handler(self,path="vek_crashlogs.txt",product="Python host",build=""):
+        return bool(self.lib.vek_install_crash_handler(self._r,str(path).encode(),str(product).encode(),str(build).encode()))
     def set_security_tier(self,tier):
         if not self.lib.vek_set_security_tier(self._r,int(tier)): raise RuntimeError("VEK security tier failed")
     def set_authority_role(self,role):

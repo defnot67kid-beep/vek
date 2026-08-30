@@ -1,0 +1,28 @@
+// Physics Definitions v0.3. Host must register PhysicsDefinitionRegistry natives.
+fn register_physics() {
+    physics_definition_register("ragdoll", {
+        id:"ragdoll.player",
+        stiffness:0.15,
+        damping:0.8,
+        self_collision:false
+    });
+    physics_definition_register("ik_chain", {
+        id:"ik.right_arm",
+        solver:"two_bone",
+        bones:["upper_arm_r","lower_arm_r","hand_r"],
+        iterations:8
+    });
+    physics_definition_register("fluid_volume", {
+        id:"fluid.water",
+        type:"water",
+        density:1000,
+        viscosity:1.0
+    });
+    physics_definition_register("physics_lod", {
+        id:"lod.world",
+        full_simulation_distance:35,
+        reduced_simulation_distance:90,
+        sleep_distance:180
+    });
+    return physics_version();
+}

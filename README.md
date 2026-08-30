@@ -1,6 +1,14 @@
 # VEK
 
-VEK 2.6.1 is the current stable line.
+VEK 2.7.0 is the current stable line.
+
+## VEK 2.7 — language/runtime platform update
+
+VEK 2.7 adds first-class structured diagnostics, a VEK debugger, append-only crash reporting, FPS/GPU/profiler runtime APIs, renderer-neutral GUI/gameplay definition registries, Physics Definitions v0.3, and new language syntax (`for ... in`, `try/catch`, `throw`, block comments). The CLI adds `vek diagnose` and `vek trace`.
+
+VEK still uses **one canonical C++20 runtime**. Host bindings now include C/C++, Python, Rust, Node.js, C#/.NET, Go, and Java 22+. Keeping one interpreter avoids security and behavior drift between languages.
+
+See `docs/RELEASE_NOTES_V2.7.0.md`, `docs/DIAGNOSTICS_DEBUGGER_V2.7.md`, `docs/LANGUAGE_V2.7.md`, and `docs/RUNTIME_PLATFORM_V2.7.md`.
 
 
 ## Windows GitHub installer
@@ -47,7 +55,7 @@ See `docs/PHYSICS_SYSTEM.md` and `examples/hair_physics.vek`.
 
 VEK started as the secure gameplay scripting language for the Custom Vehicle Game, but the runtime is designed to be usable by other applications as well. It keeps one canonical language/runtime implementation and exposes safe host APIs instead of requiring every host language to reimplement VEK.
 
-Current version: **2.6.1**
+Current version: **2.7.0**
 
 ## What VEK is designed for
 
@@ -83,10 +91,13 @@ VEK supports:
 - functions and parameters
 - `if / else if / else`
 - `while`
+- `for value in collection` deterministic iteration
+- `try / catch` for explicit VEK throws
+- `throw value`
 - `break` and `continue`
 - `return`
 - arithmetic, comparison and boolean operators
-- comments using `#` or `//`
+- comments using `#`, `//`, or `/* ... */`
 - arrays
 - maps/dictionaries
 - nested indexing and member access
@@ -96,7 +107,9 @@ VEK supports:
 - host-registered native functions
 - configurable execution/sandbox limits
 - a sealable native-function registry
-- CLI, evaluator, syntax checker and REPL
+- structured diagnostics and VEK call stacks
+- function/line debugger breakpoints and execution trace
+- CLI, evaluator, syntax checker, diagnostics runner, tracer and REPL
 
 ## SDK systems
 
@@ -120,6 +133,12 @@ VEK currently includes reusable native-side SDK systems for:
 - feet-on-ground / grounding profiles
 - Responsive GUI text fitting, wrapping, clipping and ellipsis
 - Safe click-only interaction metadata and inside-egress garage policy
+- FPS / frame-time / CPU / GPU performance tracking
+- GPU capabilities and memory-budget descriptors
+- Runtime profiler zone aggregation
+- Generic GUI definition registry
+- Generic gameplay definition registry
+- Physics Definitions v0.3 descriptors
 
 ## VEK 2.0 authority/security systems
 
@@ -151,6 +170,8 @@ The repository also contains binding foundations for:
 ```text
 bindings/
 ├── csharp/
+├── go/
+├── java/
 ├── node/
 ├── python/
 └── rust/
@@ -240,6 +261,8 @@ Examples:
 vek --install
 vek run examples/hello.vek
 vek check examples/hello.vek
+vek diagnose examples/hello.vek
+vek trace examples/language_v27.vek
 vek eval "(10 + 5) * 2"
 vek repl
 vek version

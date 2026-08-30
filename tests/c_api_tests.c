@@ -35,5 +35,21 @@ int main(void){
     assert(vek_authority_validate_request_v2(r,"shop.buy","p1","session-01",1,1,"nonce-000001","{item:wheel}","shop.buy",1.0));
     assert(!vek_authority_validate_request_v2(r,"shop.buy","p1","session-01",1,1,"nonce-000001","{item:wheel}","shop.buy",1.1));
     assert(!vek_authority_validate_request(r,"shop.buy","p1",2,"nonce-000002","{item:wheel}","shop.buy",1.2));
+
+    assert(vek_debugger_attach(r,1));
+    assert(vek_debugger_add_function_breakpoint(r,"add"));
+    z=vek_call(r,"add",a,2);
+    assert(vek_debugger_is_paused(r));
+    assert(vek_debugger_paused_function(r)[0]!=0);
+    assert(vek_debugger_trace_json(r)[0]=='[');
+    vek_debugger_continue(r);
+    assert(vek_debugger_remove_function_breakpoint(r,"add"));
+    assert(vek_load_source(r,"fn fail(){ return 1/0; }","<c-diagnostic>"));
+    z=vek_call(r,"fail",0,0);
+    assert(vek_last_error(r)[0]!=0);
+    assert(vek_last_diagnostic_code(r)[0]!=0);
+    assert(vek_last_diagnostic_text(r)[0]!=0);
+    assert(vek_diagnostic_count(r)>0);
+
     printf("VEK C ABI tests: PASS\n");vek_destroy(r);return 0;
 }

@@ -16,7 +16,7 @@ struct PhysicsVec3 {
 };
 
 
-// Advanced Physics Definitions v0.2 -----------------------------------------
+// Advanced Physics Definitions v0.3 -----------------------------------------
 // These are engine-independent descriptors and a bounded script registry. They
 // intentionally do not implement a rigid-body solver: hosts may translate the
 // definitions into PhysX/Jolt/Bullet/custom backends without coupling VEK to one.
@@ -85,9 +85,78 @@ struct BreakableDefinition { std::string id; float impulseThreshold=1000.0f,ener
 struct ForceFieldDefinition { std::string id; PhysicsVec3 direction{0.0f,1.0f,0.0f}; float strength=0.0f,radius=1.0f,falloff=1.0f; bool radial=false; };
 struct PhysicsQueryFilterDefinition { std::string id; std::uint32_t layerMask=0xffffffffu; bool includeTriggers=false,includeStatic=true,includeKinematic=true,includeDynamic=true; PhysicsQueryMode mode=PhysicsQueryMode::Closest; };
 
+
+// Physics Definitions v0.3 additions. These stay backend-neutral and can be
+// translated to PhysX/Jolt/Bullet/Havok/custom solvers by a host engine.
+enum class PhysicsCcdMode { Discrete=0, Continuous, Speculative };
+enum class PhysicsFluidType { Water=0, Oil, Lava, Gas, Custom };
+enum class PhysicsParticleCollisionMode { None=0, Scene, SelfAndScene };
+enum class PhysicsIkSolver { FABRIK=0, CCD, TwoBone, Jacobian };
+struct ContactMaterialOverrideDefinition {
+    std::string id; std::string materialA,materialB; float friction=-1.0f,restitution=-1.0f;
+    float tangentSpeed=0.0f; bool disableContact=false;
+};
+struct ContinuousCollisionDefinition {
+    std::string id; PhysicsCcdMode mode=PhysicsCcdMode::Continuous; float motionThreshold=0.2f;
+    float sweptRadius=0.01f; int maxPasses=4;
+};
+struct ArticulationLinkDefinition {
+    std::string id,parentId,bodyId; PhysicsJointType joint=PhysicsJointType::BallSocket;
+    ConstraintLimitDefinition swingLimit{},twistLimit{}; MotorDefinition drive{};
+};
+struct ArticulationDefinition {
+    std::string id; std::vector<ArticulationLinkDefinition> links; int solverIterations=8;
+    bool fixedBase=false,selfCollision=false;
+};
+struct RagdollBodyDefinition {
+    std::string bone,bodyId; float massScale=1.0f; PhysicsVec3 centerOfMassOffset{};
+};
+struct RagdollDefinition {
+    std::string id; std::vector<RagdollBodyDefinition> bodies; float stiffness=0.15f,damping=0.8f;
+    float maxImpulse=2500.0f; bool selfCollision=false;
+};
+struct IkChainDefinition {
+    std::string id; std::vector<std::string> bones; PhysicsIkSolver solver=PhysicsIkSolver::FABRIK;
+    int iterations=12; float tolerance=0.001f,positionWeight=1.0f,rotationWeight=0.25f;
+};
+struct ParticleEmitterPhysicsDefinition {
+    std::string id; int maxParticles=4096; float spawnRate=60.0f,lifetime=2.0f,particleRadius=0.02f,particleMass=0.005f;
+    PhysicsVec3 initialVelocity{},acceleration{0.0f,-9.81f,0.0f}; float drag=0.01f,restitution=0.1f;
+    PhysicsParticleCollisionMode collision=PhysicsParticleCollisionMode::Scene;
+};
+struct FluidVolumeDefinition {
+    std::string id; PhysicsFluidType type=PhysicsFluidType::Water; PhysicsVec3 halfExtents{1.0f,1.0f,1.0f};
+    float density=1000.0f,viscosity=1.0f,linearDrag=1.0f,angularDrag=1.0f,flowStrength=0.0f;
+    PhysicsVec3 flowDirection{1.0f,0.0f,0.0f};
+};
+struct DestructionClusterDefinition {
+    std::string id; int maxFragments=128; float health=100.0f,damagePropagation=0.5f,fractureImpulse=750.0f;
+    float debrisLifetime=20.0f; bool allowRuntimeFracture=true;
+};
+struct TireFrictionDefinition {
+    std::string id; float longitudinalStiffness=12.0f,lateralStiffness=10.0f,peakSlipRatio=0.12f,peakSlipAngleDegrees=8.0f;
+    float rollingResistance=0.015f,loadSensitivity=0.2f,temperatureGripScale=1.0f;
+};
+struct SuspensionDefinition {
+    std::string id; float restLength=0.32f,maxCompression=0.16f,maxDroop=0.20f,springRate=35000.0f,damperBump=4200.0f,damperRebound=5000.0f;
+    float antiRoll=0.0f;
+};
+struct PhysicsSceneQueryDefinition {
+    std::string id; PhysicsQueryMode mode=PhysicsQueryMode::Closest; std::uint32_t layerMask=0xffffffffu;
+    float maxDistance=1000.0f; std::size_t maxHits=64; bool includeTriggers=false,backfaceHits=false;
+};
+struct PhysicsLodDefinition {
+    std::string id; float fullSimulationDistance=35.0f,reducedSimulationDistance=90.0f,sleepDistance=180.0f;
+    int reducedSolverIterations=2; bool allowFreeze=true;
+};
+struct PhysicsEventDefinition {
+    std::string id; bool onContactBegin=true,onContactEnd=true,onTriggerEnter=true,onTriggerExit=true,onSleep=false,onWake=false,onJointBreak=true;
+    std::uint32_t layerMask=0xffffffffu;
+};
+
 class PhysicsDefinitionRegistry {
 public:
-    static constexpr const char* ApiVersion="0.2";
+    static constexpr const char* ApiVersion="0.3";
     bool RegisterDefinition(const std::string& category,const VekValue& definition,std::string* error=nullptr);
     const VekValue* Find(const std::string& category,const std::string& id) const;
     bool Exists(const std::string& category,const std::string& id) const { return Find(category,id)!=nullptr; }

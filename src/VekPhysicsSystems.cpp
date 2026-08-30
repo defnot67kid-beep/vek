@@ -36,7 +36,9 @@ bool SafePhysicsToken(const std::string& s,std::size_t maxLen){
 bool ValidPhysicsCategory(const std::string& c){
     static const std::unordered_set<std::string> allowed={
         "material","collider","rigid_body","joint","solver","world","character_controller","vehicle",
-        "soft_body","cloth","rope","aerodynamics","buoyancy","breakable","force_field","query_filter"};
+        "soft_body","cloth","rope","aerodynamics","buoyancy","breakable","force_field","query_filter",
+        "contact_material","ccd","articulation","ragdoll","ik_chain","particle_emitter","fluid_volume",
+        "destruction_cluster","tire_friction","suspension","scene_query","physics_lod","physics_event"};
     return allowed.count(c)!=0;
 }
 
@@ -59,15 +61,15 @@ SecondaryMotionProfile Sanitize(SecondaryMotionProfile p){
 }
 
 bool PhysicsDefinitionRegistry::RegisterDefinition(const std::string& category,const VekValue& definition,std::string* error){
-    if(!ValidPhysicsCategory(category)){if(error)*error="unknown physics v0.2 definition category";return false;}
-    if(!definition.IsMap()){if(error)*error="physics_v02_definition_register expects a map definition";return false;}
+    if(!ValidPhysicsCategory(category)){if(error)*error="unknown physics v0.3 definition category";return false;}
+    if(!definition.IsMap()){if(error)*error="physics definition register expects a map definition";return false;}
     const std::string id=definition.Get("id").AsString();
-    if(!SafePhysicsToken(id,128)){if(error)*error="physics v0.2 definition requires a safe id";return false;}
+    if(!SafePhysicsToken(id,128)){if(error)*error="physics v0.3 definition requires a safe id";return false;}
     std::string serialized;
-    try{serialized=definition.ToJson();}catch(...){if(error)*error="physics v0.2 definition could not be serialized";return false;}
-    if(serialized.size()>64u*1024u){if(error)*error="physics v0.2 definition exceeds 64 KiB";return false;}
+    try{serialized=definition.ToJson();}catch(...){if(error)*error="physics v0.3 definition could not be serialized";return false;}
+    if(serialized.size()>64u*1024u){if(error)*error="physics v0.3 definition exceeds 64 KiB";return false;}
     auto& bucket=definitions[category];
-    if(bucket.size()>=4096 && !bucket.count(id)){if(error)*error="physics v0.2 category capacity reached";return false;}
+    if(bucket.size()>=4096 && !bucket.count(id)){if(error)*error="physics v0.3 category capacity reached";return false;}
     bucket[id]=definition;
     if(error)error->clear();
     return true;
@@ -79,12 +81,19 @@ const VekValue* PhysicsDefinitionRegistry::Find(const std::string& category,cons
 std::size_t PhysicsDefinitionRegistry::Count(const std::string& category)const{auto it=definitions.find(category);return it==definitions.end()?0:it->second.size();}
 void PhysicsDefinitionRegistry::Clear(){definitions.clear();}
 void PhysicsDefinitionRegistry::RegisterNatives(VekScriptEngine& engine){
-    engine.RegisterNative("physics_v02_version",[](const std::vector<VekValue>&){return VekValue(std::string(ApiVersion));});
-    engine.RegisterNative("physics_v02_definition_register",[this](const std::vector<VekValue>& a){
-        if(a.size()<2)return VekValue(false);std::string error;return VekValue(RegisterDefinition(a[0].AsString(),a[1],&error));
-    });
-    engine.RegisterNative("physics_v02_definition_exists",[this](const std::vector<VekValue>& a){return VekValue(a.size()>=2&&Exists(a[0].AsString(),a[1].AsString()));});
-    engine.RegisterNative("physics_v02_definition_count",[this](const std::vector<VekValue>& a){return VekValue((double)(a.empty()?0:Count(a[0].AsString())));});
+    // Stable generic names for 2.7+, plus v0.2 aliases for source compatibility.
+    auto version=[](const std::vector<VekValue>&){return VekValue(std::string(ApiVersion));};
+    auto reg=[this](const std::vector<VekValue>& a){if(a.size()<2)return VekValue(false);std::string error;return VekValue(RegisterDefinition(a[0].AsString(),a[1],&error));};
+    auto exists=[this](const std::vector<VekValue>& a){return VekValue(a.size()>=2&&Exists(a[0].AsString(),a[1].AsString()));};
+    auto count=[this](const std::vector<VekValue>& a){return VekValue((double)(a.empty()?0:Count(a[0].AsString())));};
+    engine.RegisterNative("physics_version",version);
+    engine.RegisterNative("physics_definition_register",reg);
+    engine.RegisterNative("physics_definition_exists",exists);
+    engine.RegisterNative("physics_definition_count",count);
+    engine.RegisterNative("physics_v02_version",[](const std::vector<VekValue>&){return VekValue("0.2");});
+    engine.RegisterNative("physics_v02_definition_register",reg);
+    engine.RegisterNative("physics_v02_definition_exists",exists);
+    engine.RegisterNative("physics_v02_definition_count",count);
 }
 
 bool SecondaryMotionProfileRegistry::RegisterProfile(const SecondaryMotionProfile& profile){

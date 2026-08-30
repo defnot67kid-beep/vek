@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(VEK VERSION 2.6.1 LANGUAGES C CXX)
+project(VEK VERSION 2.7.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -23,6 +23,8 @@ add_library(vek_runtime STATIC
     src/VekAuthoritySystems.cpp
     src/VekPhysicsSystems.cpp
     src/VekInteractiveUiSystems.cpp
+    src/VekDiagnosticsSystems.cpp
+    src/VekRuntimeSystems.cpp
 )
 target_include_directories(vek_runtime PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -86,6 +88,19 @@ if(VEK_BUILD_TESTS)
     add_executable(vek_interactive_ui_systems_tests tests/interactive_ui_systems_tests.cpp)
     target_link_libraries(vek_interactive_ui_systems_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_interactive_ui COMMAND vek_interactive_ui_systems_tests)
+
+
+    add_executable(vek_diagnostics_runtime_tests tests/diagnostics_runtime_tests.cpp)
+    target_link_libraries(vek_diagnostics_runtime_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_diagnostics_runtime COMMAND vek_diagnostics_runtime_tests)
+
+    add_executable(vek_language_v27_tests tests/language_v27_tests.cpp)
+    target_link_libraries(vek_language_v27_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_language_v27 COMMAND vek_language_v27_tests)
+
+    add_executable(vek_runtime_platform_tests tests/runtime_platform_tests.cpp)
+    target_link_libraries(vek_runtime_platform_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_runtime_platform COMMAND vek_runtime_platform_tests)
 
     if(VEK_BUILD_C_ABI)
         add_executable(vek_c_api_tests tests/c_api_tests.c)
