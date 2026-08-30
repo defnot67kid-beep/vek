@@ -98,7 +98,7 @@ bool AuthorityActionRegistry::Register(const AuthorityActionDefinition& d){
     if(!d.requiredCapability.empty()&&!SafeToken(d.requiredCapability,128))return false;
     if(!std::isfinite(d.maxRequestsPerSecond)||d.maxRequestsPerSecond<0.1f||d.maxRequestsPerSecond>1000.0f||d.burst<1||d.burst>10000)return false;
     if(d.maxPayloadBytes<1||d.maxPayloadBytes>1024u*1024u||d.maxPayloadDepth<1||d.maxPayloadDepth>64||d.maxPayloadItems<1||d.maxPayloadItems>65536||d.maxStringBytes<1||d.maxStringBytes>1024u*1024u)return false;
-    if(d.minNonceBytes<8||d.maxNonceBytes<d.minNonceBytes||d.maxNonceBytes>256)return false;
+    if(d.minNonceBytes<8||d.maxNonceBytes<d.minNonceBytes||d.maxNonceBytes>256||d.maxTrackedNonces<32||d.maxTrackedNonces>4096)return false;
     actions.emplace(d.id,d);return true;
 }
 bool AuthorityActionRegistry::RegisterValue(const VekValue& v,std::string* error){
@@ -109,6 +109,8 @@ bool AuthorityActionRegistry::RegisterValue(const VekValue& v,std::string* error
     b=v.Get("require_sequence");if(!b.IsNil())d.requireSequence=b.AsBool();
     b=v.Get("replay_protected");if(!b.IsNil())d.replayProtected=b.AsBool();
     b=v.Get("require_authenticated_session");if(!b.IsNil())d.requireAuthenticatedSession=b.AsBool();
+    b=v.Get("bind_actor_to_session");if(!b.IsNil())d.bindActorToSession=b.AsBool();
+    b=v.Get("require_sealed_capabilities");if(!b.IsNil())d.requireSealedCapabilities=b.AsBool();
     d.maxRequestsPerSecond=(float)v.Get("max_requests_per_second").AsNumber(d.maxRequestsPerSecond);
     d.burst=(int)v.Get("burst").AsNumber(d.burst);
     d.maxPayloadBytes=(std::size_t)std::max(1.0,v.Get("max_payload_bytes").AsNumber((double)d.maxPayloadBytes));
@@ -117,6 +119,7 @@ bool AuthorityActionRegistry::RegisterValue(const VekValue& v,std::string* error
     d.maxStringBytes=(std::size_t)std::max(1.0,v.Get("max_string_bytes").AsNumber((double)d.maxStringBytes));
     d.minNonceBytes=(std::size_t)std::max(1.0,v.Get("min_nonce_bytes").AsNumber((double)d.minNonceBytes));
     d.maxNonceBytes=(std::size_t)std::max(1.0,v.Get("max_nonce_bytes").AsNumber((double)d.maxNonceBytes));
+    d.maxTrackedNonces=(std::size_t)std::max(32.0,v.Get("max_tracked_nonces").AsNumber((double)d.maxTrackedNonces));
     d.requiredCapability=v.Get("required_capability").AsString();
     if(!Register(d)){if(error)*error="invalid or duplicate authority action definition";return false;}if(error)error->clear();return true;
 }
@@ -145,8 +148,8 @@ void ReplicationSchemaRegistry::RegisterNatives(VekScriptEngine&e){e.RegisterNat
 void SecurityAuditBuffer::Push(SecurityAuditEvent e){if(maxEvents==0)return;events.push_back(std::move(e));while(events.size()>maxEvents)events.pop_front();}
 
 ServerAuthoritySystem::ServerAuthoritySystem(HostAuthorityRole r):hostRole(r){}
-void ServerAuthoritySystem::ResetActor(const std::string&a){for(auto it=state.begin();it!=state.end();){if(it->first.rfind(a+"\n",0)==0)it=state.erase(it);else ++it;}}
-void ServerAuthoritySystem::Reset(){state.clear();audit.Clear();}
+void ServerAuthoritySystem::ResetActor(const std::string&a){for(auto it=state.begin();it!=state.end();){if(it->first.rfind(a+"\n",0)==0)it=state.erase(it);else ++it;}for(auto it=sessionActors.begin();it!=sessionActors.end();){if(it->second==a)it=sessionActors.erase(it);else ++it;}}
+void ServerAuthoritySystem::Reset(){state.clear();sessionActors.clear();audit.Clear();}
 AuthorityDecision ServerAuthoritySystem::Deny(const AuthorityRequest&r,AuthorityDecisionCode c,const std::string&reason,float now){audit.Push({now,r.actorId,r.actionId,c,reason});return{c,false,reason};}
 
 AuthorityDecision ServerAuthoritySystem::ValidateClientRequest(const AuthorityRequest&r,const AuthorityActionRegistry&reg,const CapabilityManifest&caps,float now){
@@ -158,6 +161,15 @@ AuthorityDecision ServerAuthoritySystem::ValidateClientRequest(const AuthorityRe
         if(!r.authenticated)return Deny(r,AuthorityDecisionCode::Unauthenticated,"request is not bound to an authenticated session",now);
         if(!SafeToken(r.sessionId,128)||r.sessionId.size()<8)return Deny(r,AuthorityDecisionCode::InvalidSession,"invalid authenticated session id",now);
     }else if(!r.sessionId.empty()&&!SafeToken(r.sessionId,128))return Deny(r,AuthorityDecisionCode::InvalidSession,"invalid session id",now);
+    if(d->requireSealedCapabilities&&!caps.Sealed())return Deny(r,AuthorityDecisionCode::UnsealedCapabilities,"capability manifest must be sealed before request validation",now);
+    if(d->requireAuthenticatedSession&&d->bindActorToSession){
+        auto owner=sessionActors.find(r.sessionId);
+        if(owner!=sessionActors.end()&&owner->second!=r.actorId)return Deny(r,AuthorityDecisionCode::SessionActorMismatch,"authenticated session is already bound to another actor",now);
+        if(owner==sessionActors.end()){
+            if(sessionActors.size()>=maxTrackedStates)return Deny(r,AuthorityDecisionCode::StateCapacity,"session binding capacity reached",now);
+            sessionActors.emplace(r.sessionId,r.actorId);
+        }
+    }
     if(!caps.Allows(d->requiredCapability))return Deny(r,AuthorityDecisionCode::MissingCapability,"actor lacks required capability",now);
 
     PayloadShapeScan scan;std::string payloadReason;
@@ -198,7 +210,7 @@ AuthorityDecision ServerAuthoritySystem::ValidateClientRequest(const AuthorityRe
     // Commit replay/sequence state only after all deterministic request checks
     // have passed, so a rate-limited legitimate request can safely retry later.
     if(d->requireSequence){s.lastSequence=r.sequence;s.hasSequence=true;}
-    if(d->replayProtected){s.nonceSet.insert(r.nonce);s.recentNonces.push_back(r.nonce);while(s.recentNonces.size()>512){s.nonceSet.erase(s.recentNonces.front());s.recentNonces.pop_front();}}
+    if(d->replayProtected){s.nonceSet.insert(r.nonce);s.recentNonces.push_back(r.nonce);while(s.recentNonces.size()>d->maxTrackedNonces){s.nonceSet.erase(s.recentNonces.front());s.recentNonces.pop_front();}}
     return{AuthorityDecisionCode::Allowed,true,"allowed"};
 }
 

@@ -12,7 +12,7 @@ import (
 	"syscall"
 )
 
-const buildVersion = "2.6.0"
+const buildVersion = "2.6.1"
 const defaultRepo = "https://github.com/defnot67kid-beep/vek.git"
 
 type semver struct {

@@ -1,6 +1,6 @@
 # VEK
 
-VEK 2.6.0 is the current stable line.
+VEK 2.6.1 is the current stable line.
 
 
 ## Windows GitHub installer
@@ -47,7 +47,7 @@ See `docs/PHYSICS_SYSTEM.md` and `examples/hair_physics.vek`.
 
 VEK started as the secure gameplay scripting language for the Custom Vehicle Game, but the runtime is designed to be usable by other applications as well. It keeps one canonical language/runtime implementation and exposes safe host APIs instead of requiring every host language to reimplement VEK.
 
-Current version: **2.5.4**
+Current version: **2.6.1**
 
 ## What VEK is designed for
 

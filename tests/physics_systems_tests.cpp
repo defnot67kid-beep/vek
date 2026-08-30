@@ -46,6 +46,23 @@ int main(){
     auto ok=vm.Call("register_test_profile");
     assert(ok.AsBool());
     assert(profiles.Find("hair.curly")!=nullptr);
-    std::cout<<"VEK secondary-motion physics tests passed\n";
+
+    vek::PhysicsDefinitionRegistry advanced;
+    advanced.RegisterNatives(vm);
+    bool advancedLoaded=vm.LoadSource(R"(
+        fn register_advanced() {
+            if (physics_v02_version() != "0.2") { return false; }
+            physics_v02_definition_register("material", {id:"material.tire", static_friction:1.1});
+            physics_v02_definition_register("rigid_body", {id:"body.car", mass:1250, type:"dynamic"});
+            return physics_v02_definition_exists("material", "material.tire") && physics_v02_definition_count("rigid_body") == 1;
+        }
+    )", "<physics-v02-test>");
+    assert(advancedLoaded);
+    assert(vm.Call("register_advanced").AsBool());
+    assert(advanced.Count("material")==1);
+    assert(advanced.Find("rigid_body","body.car")!=nullptr);
+    std::string error;
+    assert(!advanced.RegisterDefinition("unknown",VekValue(VekMap{{"id",VekValue("x")}}),&error));
+    std::cout<<"VEK secondary motion + Physics Definitions v0.2 tests passed\n";
     return 0;
 }

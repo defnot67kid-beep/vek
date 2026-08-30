@@ -1,5 +1,15 @@
 # VEK Versions
 
+## VEK 2.6.1
+
+- Hardened authoritative-request validation with sealed capability manifests and authenticated session-to-actor binding.
+- Added bounded per-action replay nonce retention and deterministic audit decisions.
+- Added `DeveloperFeatureGate` for development-tier, local, authenticated, trusted-native tooling capabilities.
+- Added Advanced Physics Definitions v0.2 descriptors and a bounded script definition registry.
+- Advanced v0.2 rigid-body/vehicle/soft-body definitions are API descriptors only; no solver is auto-enabled.
+- Kept the deterministic secondary-motion spring-chain solver used by articulated hair.
+- Updated installer/bootstrap version metadata to 2.6.1.
+
 ## VEK 2.5.4
 
 - Redesigned Windows installer to reduce antivirus false-positive risk.

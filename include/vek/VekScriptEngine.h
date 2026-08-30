@@ -10,9 +10,9 @@
 #include <vector>
 
 #define VEK_VERSION_MAJOR 2
-#define VEK_VERSION_MINOR 3
-#define VEK_VERSION_PATCH 0
-#define VEK_VERSION_STRING "2.5.4"
+#define VEK_VERSION_MINOR 6
+#define VEK_VERSION_PATCH 1
+#define VEK_VERSION_STRING "2.6.1"
 
 class VekValue;
 using VekArray = std::vector<VekValue>;

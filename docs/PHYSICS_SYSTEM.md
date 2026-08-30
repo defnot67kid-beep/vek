@@ -1,23 +1,24 @@
-# VEK Secondary-Motion Physics
+# VEK Physics
 
-VEK 2.3 adds an engine-independent deterministic spring-chain solver for hair,
-cloth strips, ropes, cables, antennae and other secondary motion.
+VEK 2.6.1 contains two deliberately separate physics layers.
 
-## C++ API
+## Secondary motion (runtime solver)
 
-Use `vek::SpringChain3D` with `vek::SpringChainSettings`. The solver uses
-bounded Verlet integration, fixed-length constraints, optional sphere collision,
-substepping, damping, stiffness, inertia and external acceleration.
+`vek::SpringChain3D` is the deterministic Verlet-style solver used for hair, cloth strips, ropes, cables and antennae. It supports bounded substeps, damping, stiffness, inertia, wind/external acceleration and optional sphere collision.
 
-The solver deliberately uses `vek::PhysicsVec3` instead of a renderer-specific
-vector type, so VEK stays embeddable in raylib, SDL, custom engines and servers.
+## Advanced Physics Definitions v0.2 (descriptor API)
 
-## VEK script profiles
+Physics v0.2 adds engine-independent C++ descriptors for materials, colliders, rigid bodies, joints/motors/limits, solver/world settings, character controllers, vehicles/wheels, soft bodies, cloth, ropes, aerodynamics, buoyancy, breakables, force fields and query filters.
 
-`SecondaryMotionProfileRegistry` exposes:
+This release **does not silently install or activate a rigid-body solver**. Games can map these definitions into Jolt, PhysX, Bullet or a custom server/client backend. The Custom Vehicle Game demo intentionally keeps its existing gameplay physics.
 
-- `secondary_motion_profile_register(map)`
-- `secondary_motion_profile_exists(id)`
-- `secondary_motion_profile_count()`
+Script hosts can expose a bounded `PhysicsDefinitionRegistry` with:
 
-Profiles clamp unsafe/non-finite values before storage.
+- `physics_v02_version()`
+- `physics_v02_definition_register(category, map)`
+- `physics_v02_definition_exists(category, id)`
+- `physics_v02_definition_count(category)`
+
+Definitions require a safe `id`, a known category, a serializable map no larger than 64 KiB, and each category is capped at 4096 definitions.
+
+The existing secondary-motion profile natives remain available: `secondary_motion_profile_register`, `secondary_motion_profile_exists`, and `secondary_motion_profile_count`.

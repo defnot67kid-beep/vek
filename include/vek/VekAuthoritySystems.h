@@ -41,6 +41,8 @@ struct AuthorityActionDefinition {
     bool requireSequence=true;
     bool replayProtected=true;
     bool requireAuthenticatedSession=false;
+    bool bindActorToSession=true;
+    bool requireSealedCapabilities=true;
     float maxRequestsPerSecond=10.0f;
     int burst=20;
     std::size_t maxPayloadBytes=4096;
@@ -49,6 +51,7 @@ struct AuthorityActionDefinition {
     std::size_t maxStringBytes=2048;
     std::size_t minNonceBytes=12;
     std::size_t maxNonceBytes=96;
+    std::size_t maxTrackedNonces=256;
     std::string requiredCapability;
 };
 
@@ -113,7 +116,9 @@ enum class AuthorityDecisionCode {
     InvalidSession,
     InvalidNonce,
     InvalidPayload,
-    StateCapacity
+    StateCapacity,
+    UnsealedCapabilities,
+    SessionActorMismatch
 };
 struct AuthorityDecision {
     AuthorityDecisionCode code=AuthorityDecisionCode::Allowed;
@@ -175,9 +180,28 @@ private:
     };
     HostAuthorityRole hostRole=HostAuthorityRole::Standalone;
     std::unordered_map<std::string,ActorActionState> state;
+    std::unordered_map<std::string,std::string> sessionActors;
     std::size_t maxTrackedStates=32768;
     SecurityAuditBuffer audit{1024};
     AuthorityDecision Deny(const AuthorityRequest& req,AuthorityDecisionCode code,const std::string& reason,float nowSeconds);
+};
+
+struct DeveloperAccessContext {
+    SecurityTier tier=SecurityTier::HardenedClient;
+    bool localSession=false;
+    bool authenticatedDeveloper=false;
+    bool signedTooling=false;
+};
+class DeveloperFeatureGate {
+public:
+    bool Grant(const std::string& feature){return features.Grant(feature);}
+    void Seal(){features.Seal();}
+    bool Sealed()const{return features.Sealed();}
+    bool Allows(const std::string& feature,const DeveloperAccessContext& context)const{
+        return context.tier==SecurityTier::Development && context.localSession && context.authenticatedDeveloper && context.signedTooling && features.Sealed() && features.Allows(feature);
+    }
+private:
+    CapabilityManifest features;
 };
 
 void VekRegisterAuthorityLibrary(VekScriptEngine& engine,
