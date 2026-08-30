@@ -1,8 +1,0 @@
-VEK 2.3 hair physics validation
-- VEK full runtime configured and built successfully on Linux CMake toolchain.
-- VEK tests: 8/8 passed, including secondary-motion physics and C API.
-- External consumer test linked successfully against VEK::Runtime.
-- Character.cpp passed C++20 syntax-only compilation using raylib API stubs.
-- Hair roots are generated from the 0.255 head-sphere equation and lifted outward.
-- VEK SpringChain3D applies sphere collision at radius 0.263 + profile padding.
-- Game GitHub dependency points to https://github.com/defnot67kid-beep/vek.git @ main.

@@ -1,9 +1,0 @@
-CustomVehicleGame v26 VEK 2.6.0 validation summary
-
-PASS - minimum required runtime version updated to 2.6.0
-PASS - existing installed runtime resolution still supported
-PASS - fallback GitHub clone path still supported
-PASS - source update includes door interaction scripts
-PASS - source update includes day/night cycle script
-PASS - source update includes developer cheat panel script
-PASS - source update includes richer character rig notes

@@ -1,9 +1,0 @@
-Custom Vehicle Game crash log
-Build: v26.8.6 VEK Part Icons + Viewmodels
-VEK runtime: 2.7.1
-
-The running game keeps its live crashlogs.txt beside CustomVehicleGame.exe.
-If the game crashes, send that runtime file with the crash report.
-Crash reports include the time, build, last game stage, exception information,
-and (for hard Windows crashes) exception/register/stack-address diagnostics.
-======================================================================

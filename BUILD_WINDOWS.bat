@@ -1,110 +1,17 @@
 @echo off
-setlocal EnableExtensions DisableDelayedExpansion
-
+setlocal
 cd /d "%~dp0"
-for %%I in ("%~dp0.") do set "SRC_DIR=%%~fI"
-
-echo ============================================
-echo  SECURE RELEASE BUILD - SMART INCREMENTAL
-echo ============================================
-echo Reuses previous compatible CMake/MSBuild work even after you download
-echo and unzip a newer source folder. Only changed C++ files/dependencies rebuild.
-echo VEK scripts/assets are exact-mirrored separately without forcing a C++ rebuild.
-echo.
-echo Source:       %SRC_DIR%
-
-where cmake >nul 2>nul
-if errorlevel 1 (
-  echo ERROR: CMake was not found. Install Visual Studio with Desktop development with C++ and CMake tools.
-  pause
-  exit /b 1
-)
-
-where git >nul 2>nul
-if errorlevel 1 (
-  echo ERROR: Git for Windows was not found. Install Git for Windows, then try again.
-  pause
-  exit /b 1
-)
-
-where powershell >nul 2>nul
-if errorlevel 1 (
-  echo ERROR: Windows PowerShell was not found.
-  pause
-  exit /b 1
-)
-
-if defined LOCALAPPDATA (
-  set "CACHE_ROOT=%LOCALAPPDATA%\VEK\incremental\CustomVehicleGame"
-) else (
-  set "CACHE_ROOT=%TEMP%\VEK-incremental\CustomVehicleGame"
-)
-set "CACHE_SOURCE=%CACHE_ROOT%\source"
-set "SMART_BUILD=%CACHE_ROOT%\release"
-set "LOCAL_OUTPUT=%SRC_DIR%\build\Release"
-
-echo Shared source: %CACHE_SOURCE%
-echo Build cache:   %SMART_BUILD%
-echo Local output:  %LOCAL_OUTPUT%
-echo.
-echo [1/4] Detecting changed source files...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%SRC_DIR%\build_support\Sync-IncrementalSource.ps1" -SourceRoot "%SRC_DIR%" -MirrorRoot "%CACHE_SOURCE%"
-if errorlevel 1 goto :syncfail
-
-echo.
-echo [2/4] Configuring/reusing CMake cache...
-if not exist "%SMART_BUILD%" mkdir "%SMART_BUILD%" >nul 2>nul
-cmake ^
-  -S "%CACHE_SOURCE%" ^
-  -B "%SMART_BUILD%" ^
-  -A x64 ^
-  "-DVEK_DEVELOPMENT_MODE=OFF" ^
-  "-DVEK_PREFER_INSTALLED=ON" ^
-  "-DVEK_INSTALL_ROOT=C:/vek"
+cmake -S . -B build -A x64 -DVEK_BUILD_CLI=ON -DVEK_BUILD_TESTS=ON
 if errorlevel 1 goto :fail
-
-echo.
-echo [3/4] Building only what changed...
-cmake --build "%SMART_BUILD%" --config Release --parallel
+cmake --build build --config Release
 if errorlevel 1 goto :fail
-
+ctest --test-dir build -C Release --output-on-failure
+if errorlevel 1 goto :fail
 echo.
-echo [4/4] Publishing an authoritative runtime copy...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%SRC_DIR%\build_support\Publish-IncrementalOutput.ps1" -BuildOutput "%SMART_BUILD%\Release" -LocalOutput "%LOCAL_OUTPUT%"
-if errorlevel 1 goto :copyfail
-
-echo.
-echo SMART RELEASE BUILD COMPLETE:
-echo   %LOCAL_OUTPUT%\CustomVehicleGame.exe
-echo.
-echo Persistent incremental cache:
-echo   %SMART_BUILD%
-echo.
-echo First build is still a full build. Future builds reuse it and compile only
-echo files invalidated by source/header/compiler/configuration changes.
-echo IMPORTANT: do NOT distribute the developer_keys folder with a public build.
+echo VEK build complete: build\Release\vek.exe
 pause
 exit /b 0
-
-:syncfail
-echo.
-echo Smart source synchronization failed. Your original source was not modified.
-pause
-exit /b 1
-
-:copyfail
-echo.
-echo Build succeeded, but copying the output back failed.
-echo Close CustomVehicleGame.exe if it is currently running.
-echo The newly built game is still available under:
-echo   %SMART_BUILD%\Release
-pause
-exit /b 1
-
 :fail
-echo.
-echo Build failed. The incremental cache has been kept for diagnosis/retry:
-echo   %SMART_BUILD%
-echo If the cache itself is damaged, run RESET_INCREMENTAL_BUILD_CACHE.bat once.
+echo VEK build failed.
 pause
 exit /b 1
