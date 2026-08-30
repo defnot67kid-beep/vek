@@ -3,8 +3,12 @@
 package main
 
 import (
+	"archive/zip"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,7 +23,7 @@ import (
 )
 
 const (
-	version     = "2.5.4"
+	version     = "2.6.0"
 	targetDir   = `C:\vek`
 	defaultRepo = "https://github.com/defnot67kid-beep/vek.git"
 
@@ -185,18 +189,18 @@ var (
 	policy          = policyManual
 	completeAt      time.Time
 
-	angle          float64 = -0.12
-	gridOffset     float64
-	clientW        int = 1280
-	clientH        int = 720
-	playerY        float64
-	playerVy       float64
-	playerRot      float64
-	onGround       = true
-	score          int
-	crashes        int
-	obstacles      = []obstacle{{420, 34, 38}, {690, 40, 52}, {970, 34, 42}, {1260, 52, 64}}
-	lastFrame      = time.Now()
+	angle      float64 = -0.12
+	gridOffset float64
+	clientW    int = 1280
+	clientH    int = 720
+	playerY    float64
+	playerVy   float64
+	playerRot  float64
+	onGround   = true
+	score      int
+	crashes    int
+	obstacles  = []obstacle{{420, 34, 38}, {690, 40, 52}, {970, 34, 42}, {1260, 52, 64}}
+	lastFrame  = time.Now()
 
 	latestVersion    = "unknown"
 	installedVersion = "none"
@@ -421,6 +425,245 @@ func latestGitHubVersion(git, repo string) string {
 	return labels[[3]int{v.major, v.minor, v.patch}]
 }
 
+const maxBootstrapPackageBytes int64 = 128 * 1024 * 1024
+
+func repoWebBase(repo string) string {
+	s := strings.TrimSpace(repo)
+	s = strings.TrimSuffix(s, ".git")
+	return strings.TrimRight(s, "/")
+}
+
+func hasArg(name string) bool {
+	for _, a := range os.Args[1:] {
+		if strings.EqualFold(a, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func downloadHTTPS(url, dst string, maxBytes int64) error {
+	client := &http.Client{Timeout: 90 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "VEK-Installer/"+version)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d for %s", resp.StatusCode, url)
+	}
+	if resp.ContentLength > maxBytes && maxBytes > 0 {
+		return fmt.Errorf("download exceeds size limit")
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	f, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var r io.Reader = resp.Body
+	if maxBytes > 0 {
+		r = io.LimitReader(resp.Body, maxBytes+1)
+	}
+	n, err := io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	if maxBytes > 0 && n > maxBytes {
+		return fmt.Errorf("download exceeds size limit")
+	}
+	return f.Sync()
+}
+
+func parseChecksumFile(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	fields := strings.Fields(string(b))
+	if len(fields) == 0 {
+		return "", fmt.Errorf("empty checksum file")
+	}
+	h := strings.ToLower(strings.TrimSpace(fields[0]))
+	if len(h) != 64 {
+		return "", fmt.Errorf("invalid SHA-256 checksum")
+	}
+	for _, c := range h {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return "", fmt.Errorf("invalid SHA-256 checksum")
+		}
+	}
+	return h, nil
+}
+
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+func safeExtractZip(src, dst string) error {
+	zr, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+	cleanRoot, err := filepath.Abs(dst)
+	if err != nil {
+		return err
+	}
+	var total int64
+	for _, f := range zr.File {
+		name := filepath.Clean(filepath.FromSlash(f.Name))
+		if name == "." || filepath.IsAbs(name) || name == ".." || strings.HasPrefix(name, ".."+string(os.PathSeparator)) {
+			return fmt.Errorf("unsafe ZIP path: %s", f.Name)
+		}
+		outPath := filepath.Join(cleanRoot, name)
+		absOut, err := filepath.Abs(outPath)
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(absOut, cleanRoot) && !strings.HasPrefix(strings.ToLower(absOut), strings.ToLower(cleanRoot)+strings.ToLower(string(os.PathSeparator))) {
+			return fmt.Errorf("ZIP path escapes update directory")
+		}
+		total += int64(f.UncompressedSize64)
+		if total > 256*1024*1024 {
+			return fmt.Errorf("expanded update exceeds size limit")
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(absOut, 0755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(absOut), 0755); err != nil {
+			return err
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		wf, err := os.OpenFile(absOut, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			rc.Close()
+			return err
+		}
+		_, cpErr := io.Copy(wf, rc)
+		closeErr := wf.Close()
+		rc.Close()
+		if cpErr != nil {
+			return cpErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
+	return nil
+}
+
+func locateUpdatedInstaller(root string) string {
+	direct := filepath.Join(root, "VekInstaller.exe")
+	if _, err := os.Stat(direct); err == nil {
+		return direct
+	}
+	entries, _ := os.ReadDir(root)
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		p := filepath.Join(root, e.Name(), "VekInstaller.exe")
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// bootstrapLatestInstaller does not overwrite the running executable. Instead it
+// downloads a published VekInstaller.zip plus its SHA-256 companion asset into a
+// versioned cache, verifies the package, extracts it, and launches that newer
+// installer. This keeps the bootstrap stable and avoids self-replacement.
+func bootstrapLatestInstaller() bool {
+	if hasArg("--no-bootstrap") {
+		return false
+	}
+	git, err := findGit()
+	if err != nil {
+		return false
+	}
+	repo := configuredRepo()
+	latest := latestGitHubVersion(git, repo)
+	if latest == "unknown" || compareSemver(parseSemver(version), parseSemver(latest)) >= 0 {
+		return false
+	}
+	base := repoWebBase(repo) + "/releases/download/v" + latest + "/"
+	cache := filepath.Join(targetDir, "versions", "v"+latest)
+	exe := filepath.Join(cache, "VekInstaller.exe")
+	if _, err := os.Stat(exe); err != nil {
+		tmp := filepath.Join(targetDir, "updates", "v"+latest)
+		_ = os.RemoveAll(tmp)
+		if err := os.MkdirAll(tmp, 0755); err != nil {
+			return false
+		}
+		zipPath := filepath.Join(tmp, "VekInstaller.zip")
+		sumPath := filepath.Join(tmp, "VekInstaller.zip.sha256")
+		if err := downloadHTTPS(base+"VekInstaller.zip.sha256", sumPath, 64*1024); err != nil {
+			return false
+		}
+		if err := downloadHTTPS(base+"VekInstaller.zip", zipPath, maxBootstrapPackageBytes); err != nil {
+			return false
+		}
+		want, err := parseChecksumFile(sumPath)
+		if err != nil {
+			return false
+		}
+		got, err := fileSHA256(zipPath)
+		if err != nil || !strings.EqualFold(want, got) {
+			return false
+		}
+		_ = os.RemoveAll(cache)
+		if err := os.MkdirAll(cache, 0755); err != nil {
+			return false
+		}
+		if err := safeExtractZip(zipPath, cache); err != nil {
+			_ = os.RemoveAll(cache)
+			return false
+		}
+		exe = locateUpdatedInstaller(cache)
+		if exe == "" {
+			_ = os.RemoveAll(cache)
+			return false
+		}
+		// Require the extracted package to declare the version we requested.
+		versionFile := filepath.Join(filepath.Dir(exe), "VERSION")
+		vb, err := os.ReadFile(versionFile)
+		if err != nil || strings.TrimSpace(string(vb)) != latest {
+			_ = os.RemoveAll(cache)
+			return false
+		}
+	}
+	cmd := exec.Command(exe, "--bootstrapped")
+	cmd.Dir = filepath.Dir(exe)
+	if err := cmd.Start(); err != nil {
+		return false
+	}
+	return true
+}
+
 func policyFile() string { return filepath.Join(targetDir, "UPDATE_POLICY") }
 func loadPolicy() updatePolicy {
 	b, e := os.ReadFile(policyFile())
@@ -501,7 +744,15 @@ func installerIsInTargetDir() bool {
 		return false
 	}
 	target, _ := filepath.Abs(targetDir)
-	return strings.EqualFold(filepath.Clean(dir), filepath.Clean(target))
+	dirClean := filepath.Clean(dir)
+	targetClean := filepath.Clean(target)
+	if strings.EqualFold(dirClean, targetClean) {
+		return true
+	}
+	versionsRoot := filepath.Join(targetClean, "versions")
+	dl := strings.ToLower(dirClean)
+	vl := strings.ToLower(versionsRoot) + strings.ToLower(string(os.PathSeparator))
+	return strings.HasPrefix(dl, vl)
 }
 
 func startInstall(mode installMode) {
@@ -522,7 +773,7 @@ func startInstall(mode installMode) {
 
 func installWorkflow(mode installMode) {
 	if !installerIsInTargetDir() {
-		fail("For a safer Windows install, extract VekInstaller.zip directly to C:\\vek and run VekInstaller.exe from that folder.")
+		fail("For initial setup, extract VekInstaller.zip directly to C:\\vek. Auto-updated installers may run from C:\\vek\\versions.")
 		return
 	}
 	modeName := "LATEST / UPDATE"
@@ -823,7 +1074,6 @@ func addUserPath(dir string) error {
 	}
 	return nil
 }
-
 
 func runnerTop() int {
 	return int(float64(clientH) * 0.66)
@@ -1275,6 +1525,9 @@ func wndProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr {
 
 func main() {
 
+	if bootstrapLatestInstaller() {
+		return
+	}
 	runtime.LockOSThread()
 	policy = loadPolicy()
 	fontSmall = createFont(14, 400, "Consolas")

@@ -12,7 +12,7 @@ import (
 	"syscall"
 )
 
-const buildVersion = "2.5.4"
+const buildVersion = "2.6.0"
 const defaultRepo = "https://github.com/defnot67kid-beep/vek.git"
 
 type semver struct {
@@ -201,9 +201,8 @@ func checkUpdate(printResult bool) bool {
 	return out
 }
 func maybeAutoUpdate() {
-	// AUTO mode performs an update check only. It never launches a hidden
-	// installer or changes files in the background. Run `vek --install` to
-	// perform an update through the visible GUI.
+	// Runtime AUTO mode performs an update check only. Installer bootstrap updates
+	// are handled by VekInstaller.exe itself using verified GitHub release assets.
 	if policy() != "auto" {
 		return
 	}
