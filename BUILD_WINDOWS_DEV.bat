@@ -5,24 +5,24 @@ cd /d "%~dp0"
 for %%I in ("%~dp0.") do set "SRC_DIR=%%~fI"
 
 echo ============================================
-echo  SECURE RELEASE BUILD - SMART INCREMENTAL
+echo  VEK DEV BUILD - SMART INCREMENTAL CACHE
 echo ============================================
-echo Reuses previous compatible CMake/MSBuild work even after you download
-echo and unzip a newer source folder. Only changed C++ files/dependencies rebuild.
-echo VEK scripts/assets are exact-mirrored separately without forcing a C++ rebuild.
+echo NOT FOR SHIPPING. Accepts unsigned .vek edits and enables F11 hot reload.
+echo Reuses previous compatible CMake/MSBuild work across newly unzipped versions.
+echo Only changed C++ files/dependencies rebuild; VEK scripts/assets are exact-mirrored.
 echo.
 echo Source:       %SRC_DIR%
 
 where cmake >nul 2>nul
 if errorlevel 1 (
-  echo ERROR: CMake was not found. Install Visual Studio with Desktop development with C++ and CMake tools.
+  echo ERROR: CMake was not found on PATH.
   pause
   exit /b 1
 )
 
 where git >nul 2>nul
 if errorlevel 1 (
-  echo ERROR: Git for Windows was not found. Install Git for Windows, then try again.
+  echo ERROR: Git for Windows was not found on PATH.
   pause
   exit /b 1
 )
@@ -40,8 +40,8 @@ if defined LOCALAPPDATA (
   set "CACHE_ROOT=%TEMP%\VEK-incremental\CustomVehicleGame"
 )
 set "CACHE_SOURCE=%CACHE_ROOT%\source"
-set "SMART_BUILD=%CACHE_ROOT%\release"
-set "LOCAL_OUTPUT=%SRC_DIR%\build\Release"
+set "SMART_BUILD=%CACHE_ROOT%\dev"
+set "LOCAL_OUTPUT=%SRC_DIR%\build-dev\Release"
 
 echo Shared source: %CACHE_SOURCE%
 echo Build cache:   %SMART_BUILD%
@@ -58,7 +58,7 @@ cmake ^
   -S "%CACHE_SOURCE%" ^
   -B "%SMART_BUILD%" ^
   -A x64 ^
-  "-DVEK_DEVELOPMENT_MODE=OFF" ^
+  "-DVEK_DEVELOPMENT_MODE=ON" ^
   "-DVEK_PREFER_INSTALLED=ON" ^
   "-DVEK_INSTALL_ROOT=C:/vek"
 if errorlevel 1 goto :fail
@@ -74,15 +74,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%SRC_DIR%\build_support\Pub
 if errorlevel 1 goto :copyfail
 
 echo.
-echo SMART RELEASE BUILD COMPLETE:
+echo SMART DEV BUILD COMPLETE:
 echo   %LOCAL_OUTPUT%\CustomVehicleGame.exe
 echo.
 echo Persistent incremental cache:
 echo   %SMART_BUILD%
 echo.
-echo First build is still a full build. Future builds reuse it and compile only
-echo files invalidated by source/header/compiler/configuration changes.
-echo IMPORTANT: do NOT distribute the developer_keys folder with a public build.
+echo First build is full. After that MSBuild reuses unchanged objects/libraries.
+echo Editing only a .vek script does not force the C++ game to recompile.
 pause
 exit /b 0
 

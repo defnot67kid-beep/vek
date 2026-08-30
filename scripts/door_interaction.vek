@@ -1,0 +1,21 @@
+# Game door interaction flow
+# Player holds knob, rotates left, then pushes door.
+
+state garage_door = {
+  knob_held:false,
+  knob_angle:0.0,
+  open_ratio:0.0
+};
+
+fn begin_hold_knob() { garage_door.knob_held = true; }
+fn end_hold_knob() { garage_door.knob_held = false; }
+fn rotate_knob_left(delta) {
+  if (garage_door.knob_held) {
+    garage_door.knob_angle = clamp(garage_door.knob_angle + delta, 0.0, 1.0);
+  }
+}
+fn push_door(amount) {
+  if (garage_door.knob_angle >= 0.85) {
+    garage_door.open_ratio = clamp(garage_door.open_ratio + amount, 0.0, 1.0);
+  }
+}

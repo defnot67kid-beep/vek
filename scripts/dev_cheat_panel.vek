@@ -1,0 +1,21 @@
+// VEK 2.6.1 developer tooling declaration.
+// The native host MUST compile with VEK_DEVELOPMENT_MODE and authenticate the
+// developer session before any of these capabilities are reachable.
+fn dev_cheat_panel_definition() {
+    return {
+        id: "dev.cheat_panel",
+        development_only: true,
+        require_authenticated_developer: true,
+        require_signed_tooling: true,
+        capabilities: [
+            "dev.garage.unlock",
+            "dev.performance_hud",
+            "dev.fly",
+            "dev.noclip",
+            "dev.god_mode",
+            "dev.teleport",
+            "dev.movement_speed",
+            "dev.garage.toggle"
+        ]
+    };
+}

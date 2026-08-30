@@ -1,0 +1,4 @@
+fn job_definition() {
+ return { id:"delivery.workshop_supplies", name:"Workshop Supplies", type:"Delivery", reward:500, xp:100, difficulty:2, cargo_mass:450, recommended:["cargo","road"], objective:"Deliver workshop supplies" };
+}
+fn reward_multiplier(mode, reputation) { if mode == "sandbox" { return 1; } return 1 + clamp(reputation,0,20) * 0.01; }

@@ -1,14 +1,5 @@
 build/
-.vs/
-.idea/
-.vscode/
-*.user
-*.suo
-*.exe
-*.obj
-*.pdb
-*.lib
-*.dll
-
-# Keep repository root/source tree tidy
-*.txt
+build-dev/
+build-tests/
+saves/
+developer_keys/*.pem

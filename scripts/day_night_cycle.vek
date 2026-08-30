@@ -1,0 +1,4 @@
+state cycle = { hour: 8.0, minutes_per_day: 18.0 };
+fn tick(dt_seconds) {
+  cycle.hour = (cycle.hour + (24.0 / (cycle.minutes_per_day * 60.0)) * dt_seconds) % 24.0;
+}

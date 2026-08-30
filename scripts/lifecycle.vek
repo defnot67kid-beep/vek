@@ -1,0 +1,51 @@
+// VEK 1.7 host-safe lifecycle/presentation policy.
+// VEK owns timing and metadata. C++ owns raylib drawing/audio device handles.
+
+fn setup_lifecycle() {
+    grounding_register({
+        id: "player.default",
+        root_offset_per_height: 0.15,
+        min_root_offset: 0.10,
+        max_root_offset: 0.24,
+        snap_tolerance: 0.035
+    });
+
+    audio_cue_register({
+        id: "player.reset.death_sound",
+        asset: "audio/death_reset.wav",
+        volume: 0.82,
+        pitch: 0.92
+    });
+
+    screen_effect_register({
+        id: "player.reset.blood_screen",
+        duration: 2.55,
+        fade_in: 0.10,
+        hold: 1.30,
+        fade_out: 0.85,
+        tint: { r: 155, g: 5, b: 8, a: 198 },
+        vignette: 0.88,
+        spatter: 0.68,
+        pulse: 0.18
+    });
+
+    death_sequence_register({
+        id: "player.reset",
+        ragdoll_impact: 32,
+        ragdoll_duration: 2.35,
+        screen_delay: 0.10,
+        audio_delay: 0.30,
+        respawn_delay: 2.80,
+        screen_effect: "player.reset.blood_screen",
+        audio_cue: "player.reset.death_sound"
+    });
+
+    return true;
+}
+
+fn lifecycle_ids() {
+    return {
+        reset_death: "player.reset",
+        player_grounding: "player.default"
+    };
+}
