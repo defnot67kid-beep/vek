@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 #include <vek/VekScriptEngine.h>
+#include <vek/VekGuiFramework.h>
 
 namespace vek {
 
@@ -143,7 +144,8 @@ private:
 struct RuntimePlatformPack {
     FramePerformanceTracker performance{};
     GpuRuntimeInfo gpu{};
-    GuiDefinitionRegistry gui{};
+    GuiDefinitionRegistry gui{}; // legacy VEK 2.7 definition registry
+    GuiFramework ui{};            // VEK 2.8 retained-mode GUI framework
     GameplayDefinitionRegistry gameplay{};
     RuntimeProfiler profiler{};
     void RegisterNatives(VekScriptEngine& engine);

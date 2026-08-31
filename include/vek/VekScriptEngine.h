@@ -11,9 +11,9 @@
 #include <vek/VekDiagnosticsSystems.h>
 
 #define VEK_VERSION_MAJOR 2
-#define VEK_VERSION_MINOR 7
-#define VEK_VERSION_PATCH 1
-#define VEK_VERSION_STRING "2.7.1"
+#define VEK_VERSION_MINOR 8
+#define VEK_VERSION_PATCH 0
+#define VEK_VERSION_STRING "2.8.0"
 
 class VekValue;
 using VekArray = std::vector<VekValue>;

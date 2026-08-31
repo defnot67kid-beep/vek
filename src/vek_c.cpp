@@ -2,6 +2,7 @@
 #include <vek/VekScriptEngine.h>
 #include <vek/VekAuthoritySystems.h>
 #include <vek/VekDiagnosticsSystems.h>
+#include <vek/VekGuiFramework.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -15,9 +16,10 @@ struct vek_runtime {
     vek::ReplicationSchemaRegistry replication;
     vek::ServerAuthoritySystem authority{vek::HostAuthorityRole::Standalone};
     vek::VekDebugger debugger;
+    vek::GuiFramework ui;
     struct Native { vek_native_fn fn=nullptr; void* user=nullptr; };
     std::unordered_map<std::string,Native> native;
-    vek_runtime(){VekRegisterStandardLibrary(engine);vek::VekRegisterAuthorityLibrary(engine,&actions,&replication);}
+    vek_runtime(){VekRegisterStandardLibrary(engine);vek::VekRegisterAuthorityLibrary(engine,&actions,&replication);ui.RegisterNatives(engine);}
 };
 static VekValue ToCpp(const vek_value&v){switch(v.type){case VEK_NUMBER:return VekValue(v.number);case VEK_BOOL:return VekValue(v.boolean!=0);case VEK_STRING:return VekValue(v.string_value?v.string_value:"");case VEK_JSON:return VekValue(v.string_value?v.string_value:"");default:return VekValue();}}
 static vek_value ToC(vek_runtime*r,const VekValue&v){vek_value out{};if(v.IsNumber()){out.type=VEK_NUMBER;out.number=v.AsNumber();}else if(v.IsBool()){out.type=VEK_BOOL;out.boolean=v.AsBool()?1:0;}else if(v.IsString()){out.type=VEK_STRING;r->scratch=v.AsString();out.string_value=r->scratch.c_str();}else if(v.IsArray()||v.IsMap()){out.type=VEK_JSON;r->scratch=v.ToJson();out.string_value=r->scratch.c_str();}else out.type=VEK_NIL;return out;}

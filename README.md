@@ -1,6 +1,15 @@
 # VEK
 
-VEK 2.7.1 is the current stable line.
+VEK 2.8.0 is the current stable line.
+
+
+## VEK 2.8 — GUI Framework major update
+
+VEK 2.8 is a GUI-focused major release. It adds a retained-mode, renderer-neutral `GuiFramework` with a persistent UI tree, 50+ widget types, row/column/grid/overlay/dock layouts, fixed/content/fill/percentage sizing, DPI and safe-area handling, themes and state styles, hit testing, keyboard focus, pointer/text/scroll input, bounded events, drag/drop metadata, accessibility roles, tween animations, UI snapshots and renderer-neutral draw lists.
+
+The older immediate GUI command API and VEK 2.7 `gui_define` registry remain available for source compatibility. New projects can use the `ui_*` native API or the C++ `vek::GuiFramework` directly. The C ABI runtime also registers the same `ui_*` natives so Python/Rust/Node/C#/Go/Java hosts can drive one canonical GUI runtime instead of reimplementing it.
+
+See `docs/GUI_FRAMEWORK_V2.8.md` and `docs/RELEASE_NOTES_V2.8.0.md`.
 
 ## VEK 2.7 — language/runtime platform update
 
@@ -55,7 +64,7 @@ See `docs/PHYSICS_SYSTEM.md` and `examples/hair_physics.vek`.
 
 VEK started as the secure gameplay scripting language for the Custom Vehicle Game, but the runtime is designed to be usable by other applications as well. It keeps one canonical language/runtime implementation and exposes safe host APIs instead of requiring every host language to reimplement VEK.
 
-Current version: **2.7.1**
+Current version: **2.8.0**
 
 ## What VEK is designed for
 
@@ -137,6 +146,7 @@ VEK currently includes reusable native-side SDK systems for:
 - GPU capabilities and memory-budget descriptors
 - Runtime profiler zone aggregation
 - Generic GUI definition registry
+- VEK 2.8 retained-mode GUI framework (layout, themes, focus, events, animation, accessibility, draw lists)
 - Generic gameplay definition registry
 - Physics Definitions v0.3 descriptors
 
@@ -150,9 +160,11 @@ VEK deliberately does not turn heuristic anomaly scores into automatic bans. Har
 
 ## GUI system
 
-VEK can describe interfaces without receiving direct GPU or renderer access. The host application consumes the generated GUI commands and renders them using its own renderer.
+VEK can describe advanced interfaces without receiving direct GPU, OS-window or renderer access. VEK 2.8 introduces `GuiFramework`, a retained-mode UI runtime that owns structure and behavior while the host owns actual drawing and native input.
 
-The command system includes concepts such as windows, modal windows, panels, layouts, labels, buttons, sliders, checkboxes, progress bars, text/password fields, status badges and keypads.
+The framework includes a persistent parent/child tree, 50+ widget types, row/column/grid/overlay/dock layout, fixed/content/fill/percentage sizing, min/max constraints, margin/padding/gaps, DPI scaling, safe areas, themes/classes, hover/pressed/focus/disabled states, typography and border/radius/opacity styling, hit testing, tab focus, pointer/keyboard/text/scroll input, drag/drop events, accessibility metadata, animation tweens, bounded event queues, snapshots and renderer-neutral draw lists.
+
+VEK 2.8 keeps the older immediate command GUI and `gui_define` registry for backward compatibility. New retained-mode scripts use the `ui_*` API, such as `ui_create`, `ui_patch`, `ui_set_viewport`, `ui_layout`, `ui_next_event`, `ui_animate`, `ui_snapshot` and `ui_draw_list`.
 
 ## One runtime, multiple host languages
 

@@ -16,3 +16,8 @@ Included foundations:
 VEK 2.7's C ABI also exposes structured diagnostics, debugger controls/trace,
 and the crash-handler entry points so host languages can use the same error and
 debugging model.
+
+
+## GUI Framework 2.8
+
+The stable C ABI runtime registers the VEK 2.8 `ui_*` natives. Language bindings can therefore load VEK code that creates/layouts/animates GUI trees while using the same canonical C++ GUI runtime. Native renderer adapters remain host-specific.

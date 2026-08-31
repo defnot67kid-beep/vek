@@ -4,6 +4,7 @@
 #endif
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 static vek_value native_42(vek_runtime* r,const vek_value* args,size_t count,void* user){
     (void)r;(void)args;(void)count;(void)user;

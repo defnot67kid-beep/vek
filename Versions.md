@@ -1,3 +1,15 @@
+## VEK 2.8.0 — GUI Framework
+- Added a retained-mode `GuiFramework` alongside the backward-compatible immediate GUI APIs.
+- Added 50+ widget types for game HUDs, menus, windows, editor tooling, data views and advanced controls.
+- Added row/column/grid/overlay/dock layout, fixed/content/fill/percentage sizing, min/max constraints, margins, padding, gaps, DPI scale and safe areas.
+- Added theme/class styling plus hover, pressed, focus and disabled visual states.
+- Added hit testing, pointer/keyboard/text/scroll input, tab focus navigation, bounded GUI events and drag/drop metadata.
+- Added accessibility roles, labels, hints and navigation ordering.
+- Added bounded tween animations with easing and renderer-neutral draw-list generation.
+- Added full UI snapshot/stat APIs and built-in dark/light themes.
+- Registered the `ui_*` script API through `RuntimePlatformPack` and the stable C ABI runtime so all host-language bindings share the same GUI behavior.
+- Added `GUI_FRAMEWORK_V2.8.md`, a complete VEK example and a dedicated GUI regression suite.
+- Preserved VEK 2.7 `gui_define` and immediate GUI command compatibility.
 
 ## VEK 2.7.1 — Part presentation assets
 - Added renderer-neutral icon, view-model, world-model and material metadata to `PartDefinition`.
