@@ -351,6 +351,58 @@ struct CameraProfileDefinition {
     float minimumTargetY=0.05f;
     std::vector<std::string> cycleModes{"third_person","close_third_person","first_person","free_inspection"};
 };
+struct CameraVec3 { float x=0.0f,y=0.0f,z=0.0f; };
+
+// VEK 3.2 advanced camera framework. The host still owns actual matrices,
+// collision tests and rendering; VEK supplies bounded, backend-neutral camera
+// definitions, cinematic shots, shake profiles and blend helpers.
+enum class CameraRigType { Follow=0, Orbit, FirstPerson, FreeFly, Vehicle, Editor, Rail, Cinematic };
+enum class CameraProjectionType { Perspective=0, Orthographic };
+enum class CameraBlendCurve { Linear=0, SmoothStep, EaseIn, EaseOut, EaseInOut, Cubic };
+struct CameraLensDefinition {
+    std::string id="camera.lens.default"; CameraProjectionType projection=CameraProjectionType::Perspective;
+    float fovDegrees=60.0f,nearClip=0.05f,farClip=5000.0f,orthographicSize=20.0f;
+    float focalLengthMm=35.0f,sensorWidthMm=36.0f,aperture=4.0f,focusDistance=10.0f;
+};
+struct CameraRigDefinition {
+    std::string id; CameraRigType type=CameraRigType::Orbit; std::string lensId="camera.lens.default";
+    float distance=8.0f,minDistance=1.0f,maxDistance=30.0f;
+    float yawMin=-360.0f,yawMax=360.0f,pitchMin=-85.0f,pitchMax=85.0f;
+    float positionHalfLife=0.12f,rotationHalfLife=0.09f,zoomHalfLife=0.10f;
+    float collisionRadius=0.25f,collisionPadding=0.08f,lookAhead=0.0f,shoulderOffset=0.0f;
+    bool collision=true,keepHorizon=true,inheritTargetVelocity=false;
+};
+struct CameraShakeDefinition {
+    std::string id; float duration=0.35f,frequency=18.0f,positionAmplitude=0.05f,rotationAmplitudeDegrees=0.8f;
+    float fovAmplitude=0.0f,falloff=1.0f; int seed=1; bool worldSpace=false;
+};
+struct CameraConstraintDefinition {
+    std::string id; CameraVec3 minBounds{-10000,-10000,-10000},maxBounds{10000,10000,10000};
+    bool clampPosition=false,lockHorizon=false,requireLineOfSight=false; float minimumGroundClearance=0.05f;
+};
+struct CameraShotDefinition {
+    std::string id,rigId,lensId; CameraVec3 position{},target{}; float duration=2.0f,hold=0.0f;
+    CameraBlendCurve blend=CameraBlendCurve::EaseInOut; float rollDegrees=0.0f; bool lookAtTarget=true;
+};
+struct CameraSequenceDefinition { std::string id; std::vector<std::string>shotIds; bool loop=false,pingPong=false; float playbackRate=1.0f; };
+struct CameraPose { CameraVec3 position{},target{}; float fovDegrees=60.0f,rollDegrees=0.0f; };
+class CameraDefinitionRegistry {
+public:
+    static constexpr const char* ApiVersion="1.0";
+    bool RegisterDefinition(const std::string& category,const VekValue& definition,std::string* error=nullptr);
+    const VekValue* Find(const std::string& category,const std::string& id) const;
+    std::size_t Count(const std::string& category) const;
+    void Clear();
+    void RegisterNatives(VekScriptEngine& engine);
+private:
+    std::unordered_map<std::string,std::unordered_map<std::string,VekValue>> definitions;
+};
+class CameraBlendSystem {
+public:
+    static float Curve(CameraBlendCurve curve,float t);
+    static CameraPose Blend(const CameraPose& a,const CameraPose& b,float t,CameraBlendCurve curve=CameraBlendCurve::EaseInOut);
+};
+
 class CameraProfileRegistry {
 public:
     bool RegisterProfile(const CameraProfileDefinition& definition);

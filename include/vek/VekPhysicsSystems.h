@@ -154,9 +154,96 @@ struct PhysicsEventDefinition {
     std::uint32_t layerMask=0xffffffffu;
 };
 
+
+// Physics Definitions v0.4 ---------------------------------------------------
+// v0.4 expands the host contract from static descriptors into a richer set of
+// vehicle/contact/scene definitions plus a deterministic lightweight vehicle
+// dynamics helper that engines can use directly or replace with a backend.
+enum class PhysicsBroadphaseType { SweepAndPrune=0, DynamicAabbTree, MultiBoxPruning, SpatialHash, Gpu };
+enum class PhysicsSolverType { SequentialImpulse=0, TemporalGaussSeidel, PositionBased, Xpbd, Custom };
+enum class PhysicsCombineMode { Average=0, Minimum, Multiply, Maximum };
+enum class PhysicsSleepPolicy { Never=0, Automatic, Aggressive };
+enum class VehicleDriveType { FrontWheel=0, RearWheel, AllWheel, Tracked, Hover, Custom };
+
+struct MassPropertiesDefinition {
+    std::string id; float mass=1.0f; PhysicsVec3 centerOfMass{}; PhysicsVec3 inertiaTensor{1,1,1};
+    PhysicsQuat inertiaOrientation{}; bool autoCompute=true;
+};
+struct AdvancedMaterialDefinition {
+    std::string id; float staticFriction=0.65f,dynamicFriction=0.55f,restitution=0.05f;
+    float rollingResistance=0.015f,adhesion=0.0f,density=1000.0f;
+    PhysicsCombineMode frictionCombine=PhysicsCombineMode::Average,restitutionCombine=PhysicsCombineMode::Maximum;
+};
+struct ContactSolverDefinition {
+    std::string id; float contactOffset=0.02f,restOffset=0.0f,bounceThreshold=1.0f,maxDepenetrationVelocity=10.0f;
+    int manifoldPoints=4; bool frictionEveryIteration=true,stabilization=true,shockPropagation=false;
+};
+struct ConstraintGraphDefinition {
+    std::string id; int maxIslands=4096,maxConstraintsPerIsland=8192; bool splitSleepingIslands=true,parallelSolve=true;
+};
+struct PhysicsSensorDefinition {
+    std::string id; std::string bodyId; PhysicsTransform local{}; PhysicsShapeType shape=PhysicsShapeType::Box;
+    PhysicsVec3 halfExtents{0.5f,0.5f,0.5f}; float radius=0.5f; std::uint32_t layerMask=0xffffffffu;
+    bool reportStay=false,reportContactPoints=true,reportRelativeVelocity=true;
+};
+struct VehicleDifferentialDefinition {
+    std::string id; float frontRearSplit=0.5f,leftRightSplit=0.5f,limitedSlipBias=1.5f; bool locked=false;
+};
+struct VehicleDrivetrainDefinition {
+    std::string id; VehicleDriveType drive=VehicleDriveType::RearWheel; std::vector<float>gearRatios{3.2f,2.1f,1.5f,1.15f,0.92f};
+    float finalDrive=3.7f,reverseRatio=-3.0f,idleRpm=850.0f,redlineRpm=7000.0f,shiftUpRpm=6500.0f,shiftDownRpm=1800.0f;
+    float clutchStrength=10.0f,drivetrainEfficiency=0.90f; std::string differentialId;
+};
+struct AeroSurfaceDefinition {
+    std::string id,bodyId; PhysicsVec3 localPosition{}; PhysicsVec3 normal{0,1,0}; PhysicsVec3 chordDirection{0,0,1};
+    float area=1.0f,liftSlope=5.5f,zeroLiftAngleDegrees=0.0f,stallAngleDegrees=15.0f,dragCoefficient=0.02f,inducedDrag=0.08f;
+};
+struct WheelContactDefinition {
+    std::string id; float tireRadius=0.34f,tireWidth=0.22f,contactPatchLength=0.12f;
+    float longitudinalStiffness=12.0f,lateralStiffness=10.0f,camberStiffness=1.0f;
+    float peakSlipRatio=0.12f,peakSlipAngleDegrees=8.0f,loadSensitivity=0.2f;
+};
+struct PhysicsSceneSettingsDefinition {
+    std::string id="physics.scene.default"; PhysicsBroadphaseType broadphase=PhysicsBroadphaseType::DynamicAabbTree;
+    PhysicsSolverType solver=PhysicsSolverType::TemporalGaussSeidel; PhysicsSleepPolicy sleepPolicy=PhysicsSleepPolicy::Automatic;
+    PhysicsVec3 gravity{0,-9.81f,0}; int substeps=2,velocityIterations=8,positionIterations=3;
+    bool deterministicOrdering=true,enableCcd=true,enableSpeculativeContacts=true,parallelSimulation=true;
+    std::size_t maxBodies=65536,maxShapes=131072,maxContactPairs=524288;
+};
+struct PhysicsDebugDrawDefinition {
+    std::string id; bool bodies=false,colliders=false,contacts=false,aabbs=false,joints=false,centerOfMass=false,sleeping=false;
+};
+struct PhysicsSnapshotDefinition {
+    std::string id; std::size_t maxBodies=8192; bool includeVelocities=true,includeSleeping=true,includeConstraints=true;
+};
+struct PhysicsNetworkSyncDefinition {
+    std::string id; float positionThreshold=0.02f,rotationThresholdDegrees=0.5f,velocityThreshold=0.05f;
+    float interpolationDelay=0.10f,maxExtrapolation=0.20f; bool reconcileDynamicBodies=true;
+};
+
+struct VehicleDynamicsConfig {
+    float mass=1200.0f,wheelbase=2.6f,trackWidth=1.55f,cgHeight=0.55f,yawInertia=1800.0f;
+    float engineForce=8500.0f,brakeForce=14000.0f,handbrakeForce=18000.0f,maxSteerDegrees=35.0f;
+    float tireGrip=1.0f,corneringStiffness=7.5f,rollingResistance=0.015f,dragCoefficient=0.32f,frontalArea=2.2f;
+    float downforceCoefficient=0.0f,steeringResponse=7.0f,maxSpeed=80.0f,suspensionStiffness=32000.0f,suspensionDamping=4200.0f;
+};
+struct VehicleDynamicsInput { float throttle=0.0f,brake=0.0f,steer=0.0f,handbrake=0.0f; };
+struct VehicleDynamicsState {
+    float longitudinalSpeed=0.0f,lateralSpeed=0.0f,yawRate=0.0f,steerAngleDegrees=0.0f;
+    float bodyRoll=0.0f,bodyPitch=0.0f,suspensionCompression=0.0f,engineRpm=900.0f;
+};
+struct VehicleDynamicsOutput {
+    float longitudinalAcceleration=0.0f,lateralAcceleration=0.0f,yawAcceleration=0.0f;
+    float tractionLimit=0.0f,longitudinalSlip=0.0f,lateralSlip=0.0f,downforce=0.0f;
+};
+class VehicleDynamicsModel {
+public:
+    static VehicleDynamicsOutput Step(VehicleDynamicsState& state,const VehicleDynamicsConfig& config,const VehicleDynamicsInput& input,float dt);
+};
+
 class PhysicsDefinitionRegistry {
 public:
-    static constexpr const char* ApiVersion="0.3";
+    static constexpr const char* ApiVersion="0.4";
     bool RegisterDefinition(const std::string& category,const VekValue& definition,std::string* error=nullptr);
     const VekValue* Find(const std::string& category,const std::string& id) const;
     bool Exists(const std::string& category,const std::string& id) const { return Find(category,id)!=nullptr; }

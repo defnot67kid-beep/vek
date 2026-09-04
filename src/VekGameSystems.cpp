@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cmath>
 #include <tuple>
+#include <unordered_set>
 
 namespace vek {
 
@@ -408,7 +409,59 @@ bool CameraProfileRegistry::RegisterProfileValue(const VekValue&v,std::string*er
 const CameraProfileDefinition*CameraProfileRegistry::Find(const std::string&id)const{auto it=profiles.find(id);return it==profiles.end()?nullptr:&it->second;}void CameraProfileRegistry::Clear(){profiles.clear();}std::size_t CameraProfileRegistry::Size()const{return profiles.size();}
 void CameraProfileRegistry::RegisterNatives(VekScriptEngine&e){e.RegisterNative("camera_profile_register",[this](const std::vector<VekValue>&a){std::string er;return VekValue(!a.empty()&&RegisterProfileValue(a[0],&er));});e.RegisterNative("camera_profile_exists",[this](const std::vector<VekValue>&a){return VekValue(!a.empty()&&Find(a[0].AsString()));});e.RegisterNative("camera_profile_fov",[this](const std::vector<VekValue>&a){auto*d=a.empty()?nullptr:Find(a[0].AsString());return VekValue(d?d->fov:0.0f);});}
 
+
+namespace {
+bool SafeCameraToken32(const std::string& s){
+    if(s.empty()||s.size()>128)return false;
+    for(unsigned char c:s)if(!(std::isalnum(c)||c=='_'||c=='-'||c=='.'||c==':'||c=='/'))return false;
+    return true;
+}
+bool ValidCameraCategory32(const std::string& c){
+    static const std::unordered_set<std::string> allowed={"lens","rig","shake","constraint","shot","sequence"};
+    return allowed.count(c)!=0;
+}
+}
+
+bool CameraDefinitionRegistry::RegisterDefinition(const std::string& category,const VekValue& definition,std::string* error){
+    if(!ValidCameraCategory32(category)){if(error)*error="unknown VEK camera definition category";return false;}
+    if(!definition.IsMap()){if(error)*error="camera_definition_register expects a map";return false;}
+    const std::string id=definition.Get("id").AsString();
+    if(!SafeCameraToken32(id)){if(error)*error="camera definition requires a safe id";return false;}
+    std::string serialized;try{serialized=definition.ToJson();}catch(...){if(error)*error="camera definition serialization failed";return false;}
+    if(serialized.size()>64u*1024u){if(error)*error="camera definition exceeds 64 KiB";return false;}
+    auto& bucket=definitions[category];if(bucket.size()>=2048&&!bucket.count(id)){if(error)*error="camera definition category capacity reached";return false;}
+    bucket[id]=definition;if(error)error->clear();return true;
+}
+const VekValue* CameraDefinitionRegistry::Find(const std::string& category,const std::string& id)const{
+    auto c=definitions.find(category);if(c==definitions.end())return nullptr;auto d=c->second.find(id);return d==c->second.end()?nullptr:&d->second;
+}
+std::size_t CameraDefinitionRegistry::Count(const std::string& category)const{auto it=definitions.find(category);return it==definitions.end()?0:it->second.size();}
+void CameraDefinitionRegistry::Clear(){definitions.clear();}
+void CameraDefinitionRegistry::RegisterNatives(VekScriptEngine& e){
+    e.RegisterNative("camera_version",[](const std::vector<VekValue>&){return VekValue(std::string(ApiVersion));});
+    e.RegisterNative("camera_definition_register",[this](const std::vector<VekValue>&a){if(a.size()<2)return VekValue(false);std::string er;return VekValue(RegisterDefinition(a[0].AsString(),a[1],&er));});
+    e.RegisterNative("camera_definition_exists",[this](const std::vector<VekValue>&a){return VekValue(a.size()>=2&&Find(a[0].AsString(),a[1].AsString())!=nullptr);});
+    e.RegisterNative("camera_definition_count",[this](const std::vector<VekValue>&a){return VekValue((double)(a.empty()?0:Count(a[0].AsString())));});
+}
+float CameraBlendSystem::Curve(CameraBlendCurve curve,float t){
+    t=std::clamp(t,0.0f,1.0f);switch(curve){
+        case CameraBlendCurve::Linear:return t;
+        case CameraBlendCurve::SmoothStep:return t*t*(3.0f-2.0f*t);
+        case CameraBlendCurve::EaseIn:return t*t;
+        case CameraBlendCurve::EaseOut:return 1.0f-(1.0f-t)*(1.0f-t);
+        case CameraBlendCurve::Cubic:return t*t*t;
+        case CameraBlendCurve::EaseInOut:default:return t<0.5f?2.0f*t*t:1.0f-std::pow(-2.0f*t+2.0f,2.0f)*0.5f;
+    }
+}
+CameraPose CameraBlendSystem::Blend(const CameraPose&a,const CameraPose&b,float t,CameraBlendCurve curve){
+    float u=Curve(curve,t);auto lerp=[&](float x,float y){return x+(y-x)*u;};CameraPose o;
+    o.position={lerp(a.position.x,b.position.x),lerp(a.position.y,b.position.y),lerp(a.position.z,b.position.z)};
+    o.target={lerp(a.target.x,b.target.x),lerp(a.target.y,b.target.y),lerp(a.target.z,b.target.z)};
+    o.fovDegrees=lerp(a.fovDegrees,b.fovDegrees);o.rollDegrees=lerp(a.rollDegrees,b.rollDegrees);return o;
+}
+
 bool SkyboxRegistry::RegisterSkybox(const SkyboxDefinition&d){if(d.id.empty()||(!d.textureAsset.empty()&&!SafeAssetId18(d.textureAsset)))return false;SkyboxDefinition s=d;s.sunPitch=std::clamp(s.sunPitch,-89.0f,89.0f);s.sunSize=std::clamp(s.sunSize,0.1f,30.0f);s.ambient=std::clamp(s.ambient,0.0f,2.0f);s.fogStart=std::clamp(s.fogStart,0.0f,10000.0f);s.fogEnd=std::clamp(s.fogEnd,s.fogStart+1.0f,20000.0f);s.dayLengthSeconds=std::clamp(s.dayLengthSeconds,10.0f,86400.0f);skyboxes[s.id]=std::move(s);return true;}
+
 bool SkyboxRegistry::RegisterSkyboxValue(const VekValue&v,std::string*error){if(!v.IsMap()){if(error)*error="skybox_register expects a map";return false;}SkyboxDefinition d;d.id=v.Get("id").AsString();ReadSkyColor18(v,"zenith",d.zenith);ReadSkyColor18(v,"horizon",d.horizon);ReadSkyColor18(v,"ground",d.ground);ReadSkyColor18(v,"sun",d.sun);d.horizonHeight=(float)v.Get("horizon_height").AsNumber(d.horizonHeight);d.sunYaw=(float)v.Get("sun_yaw").AsNumber(d.sunYaw);d.sunPitch=(float)v.Get("sun_pitch").AsNumber(d.sunPitch);d.sunSize=(float)v.Get("sun_size").AsNumber(d.sunSize);d.ambient=(float)v.Get("ambient").AsNumber(d.ambient);d.fogStart=(float)v.Get("fog_start").AsNumber(d.fogStart);d.fogEnd=(float)v.Get("fog_end").AsNumber(d.fogEnd);d.dayLengthSeconds=(float)v.Get("day_length_seconds").AsNumber(d.dayLengthSeconds);auto dyn=v.Get("dynamic_day_night");if(!dyn.IsNil())d.dynamicDayNight=dyn.AsBool();d.textureAsset=v.Get("texture_asset").AsString();if(!RegisterSkybox(d)){if(error)*error="invalid/unsafe skybox definition";return false;}if(error)error->clear();return true;}
 const SkyboxDefinition*SkyboxRegistry::Find(const std::string&id)const{auto it=skyboxes.find(id);return it==skyboxes.end()?nullptr:&it->second;}void SkyboxRegistry::Clear(){skyboxes.clear();}std::size_t SkyboxRegistry::Size()const{return skyboxes.size();}
 void SkyboxRegistry::RegisterNatives(VekScriptEngine&e){e.RegisterNative("skybox_register",[this](const std::vector<VekValue>&a){std::string er;return VekValue(!a.empty()&&RegisterSkyboxValue(a[0],&er));});e.RegisterNative("skybox_exists",[this](const std::vector<VekValue>&a){return VekValue(!a.empty()&&Find(a[0].AsString()));});}

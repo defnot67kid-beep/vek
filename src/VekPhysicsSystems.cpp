@@ -38,7 +38,9 @@ bool ValidPhysicsCategory(const std::string& c){
         "material","collider","rigid_body","joint","solver","world","character_controller","vehicle",
         "soft_body","cloth","rope","aerodynamics","buoyancy","breakable","force_field","query_filter",
         "contact_material","ccd","articulation","ragdoll","ik_chain","particle_emitter","fluid_volume",
-        "destruction_cluster","tire_friction","suspension","scene_query","physics_lod","physics_event"};
+        "destruction_cluster","tire_friction","suspension","scene_query","physics_lod","physics_event",
+        "mass_properties","advanced_material","contact_solver","constraint_graph","sensor","drivetrain",
+        "differential","aero_surface","wheel_contact","scene_settings","debug_draw","snapshot","network_sync"};
     return allowed.count(c)!=0;
 }
 
@@ -90,6 +92,10 @@ void PhysicsDefinitionRegistry::RegisterNatives(VekScriptEngine& engine){
     engine.RegisterNative("physics_definition_register",reg);
     engine.RegisterNative("physics_definition_exists",exists);
     engine.RegisterNative("physics_definition_count",count);
+    engine.RegisterNative("physics_v03_version",[](const std::vector<VekValue>&){return VekValue("0.3");});
+    engine.RegisterNative("physics_v03_definition_register",reg);
+    engine.RegisterNative("physics_v03_definition_exists",exists);
+    engine.RegisterNative("physics_v03_definition_count",count);
     engine.RegisterNative("physics_v02_version",[](const std::vector<VekValue>&){return VekValue("0.2");});
     engine.RegisterNative("physics_v02_definition_register",reg);
     engine.RegisterNative("physics_v02_definition_exists",exists);
@@ -248,6 +254,46 @@ void SpringChain3D::SolveConstraints(PhysicsVec3 root,PhysicsVec3 sphereCenter,f
         }
     }
     particles_[0].position=root;
+}
+
+
+VehicleDynamicsOutput VehicleDynamicsModel::Step(VehicleDynamicsState& state,const VehicleDynamicsConfig& c0,const VehicleDynamicsInput& i0,float dt){
+    VehicleDynamicsConfig c=c0;VehicleDynamicsInput in=i0;VehicleDynamicsOutput out;
+    dt=std::clamp(FiniteOr(dt,0.0f),0.0f,0.05f);if(dt<=0.0f)return out;
+    c.mass=std::clamp(FiniteOr(c.mass,1200.0f),50.0f,100000.0f);
+    c.wheelbase=std::clamp(FiniteOr(c.wheelbase,2.6f),0.4f,20.0f);c.yawInertia=std::clamp(FiniteOr(c.yawInertia,1800.0f),10.0f,1.0e7f);
+    c.engineForce=std::max(0.0f,FiniteOr(c.engineForce,8500.0f));c.brakeForce=std::max(0.0f,FiniteOr(c.brakeForce,14000.0f));
+    c.handbrakeForce=std::max(0.0f,FiniteOr(c.handbrakeForce,18000.0f));c.maxSteerDegrees=std::clamp(FiniteOr(c.maxSteerDegrees,35.0f),1.0f,75.0f);
+    c.tireGrip=std::clamp(FiniteOr(c.tireGrip,1.0f),0.05f,4.0f);c.corneringStiffness=std::clamp(FiniteOr(c.corneringStiffness,7.5f),0.1f,50.0f);
+    c.rollingResistance=std::clamp(FiniteOr(c.rollingResistance,0.015f),0.0f,0.25f);c.dragCoefficient=std::clamp(FiniteOr(c.dragCoefficient,0.32f),0.0f,3.0f);
+    c.frontalArea=std::clamp(FiniteOr(c.frontalArea,2.2f),0.05f,100.0f);c.maxSpeed=std::clamp(FiniteOr(c.maxSpeed,80.0f),1.0f,400.0f);
+    in.throttle=std::clamp(FiniteOr(in.throttle,0.0f),-1.0f,1.0f);in.brake=std::clamp(FiniteOr(in.brake,0.0f),0.0f,1.0f);
+    in.steer=std::clamp(FiniteOr(in.steer,0.0f),-1.0f,1.0f);in.handbrake=std::clamp(FiniteOr(in.handbrake,0.0f),0.0f,1.0f);
+    const float speed=std::fabs(state.longitudinalSpeed);const float steerTarget=in.steer*c.maxSteerDegrees;
+    const float steerAlpha=1.0f-std::exp(-std::max(0.1f,c.steeringResponse)*dt);state.steerAngleDegrees+=(steerTarget-state.steerAngleDegrees)*steerAlpha;
+    const float normalLoad=c.mass*9.81f;const float aeroDown=0.5f*1.225f*std::max(0.0f,c.downforceCoefficient)*c.frontalArea*speed*speed;
+    out.downforce=aeroDown;out.tractionLimit=(normalLoad+aeroDown)*c.tireGrip;
+    const float driveForce=in.throttle*c.engineForce;const float brakeSign=state.longitudinalSpeed>=0.0f?1.0f:-1.0f;
+    float braking=in.brake*c.brakeForce*brakeSign+in.handbrake*c.handbrakeForce*brakeSign;
+    const float drag=0.5f*1.225f*c.dragCoefficient*c.frontalArea*speed*speed*brakeSign;
+    const float rolling=c.rollingResistance*normalLoad*brakeSign;
+    float longitudinalForce=driveForce-braking-drag-rolling;longitudinalForce=std::clamp(longitudinalForce,-out.tractionLimit,out.tractionLimit);
+    out.longitudinalAcceleration=longitudinalForce/c.mass;state.longitudinalSpeed+=out.longitudinalAcceleration*dt;
+    if(std::fabs(in.throttle)<0.01f&&in.brake<0.01f&&std::fabs(state.longitudinalSpeed)<0.03f)state.longitudinalSpeed=0.0f;
+    state.longitudinalSpeed=std::clamp(state.longitudinalSpeed,-c.maxSpeed*0.35f,c.maxSpeed);
+    const float steerRad=state.steerAngleDegrees*3.14159265358979323846f/180.0f;
+    const float desiredYaw=(std::fabs(c.wheelbase)>1e-4f)?(state.longitudinalSpeed/c.wheelbase)*std::tan(steerRad):0.0f;
+    const float lateralDamping=std::min(out.tractionLimit/c.mass,std::max(0.0f,c.corneringStiffness)*std::fabs(state.longitudinalSpeed));
+    out.lateralAcceleration=-state.lateralSpeed*lateralDamping;state.lateralSpeed+=out.lateralAcceleration*dt;
+    const float yawTorque=(desiredYaw-state.yawRate)*c.yawInertia*4.0f-state.yawRate*c.yawInertia*0.8f;out.yawAcceleration=yawTorque/c.yawInertia;state.yawRate+=out.yawAcceleration*dt;
+    const float maxYaw=std::max(0.5f,std::fabs(state.longitudinalSpeed)/std::max(0.4f,c.wheelbase)*1.5f);state.yawRate=std::clamp(state.yawRate,-maxYaw,maxYaw);
+    out.longitudinalSlip=std::clamp(std::fabs(driveForce)/std::max(1.0f,out.tractionLimit),0.0f,2.0f);
+    out.lateralSlip=std::clamp(std::fabs(state.lateralSpeed)/std::max(1.0f,std::fabs(state.longitudinalSpeed)),0.0f,2.0f);
+    const float pitchTarget=std::clamp(-out.longitudinalAcceleration*0.035f,-0.12f,0.12f);const float rollTarget=std::clamp(-state.yawRate*state.longitudinalSpeed*0.012f,-0.18f,0.18f);
+    state.bodyPitch+=(pitchTarget-state.bodyPitch)*(1.0f-std::exp(-7.0f*dt));state.bodyRoll+=(rollTarget-state.bodyRoll)*(1.0f-std::exp(-7.0f*dt));
+    state.suspensionCompression+=(std::clamp((std::fabs(out.longitudinalAcceleration)+std::fabs(out.lateralAcceleration))*0.02f,0.0f,0.18f)-state.suspensionCompression)*(1.0f-std::exp(-9.0f*dt));
+    state.engineRpm=std::clamp(850.0f+std::fabs(state.longitudinalSpeed)*110.0f+std::fabs(in.throttle)*2200.0f,800.0f,7800.0f);
+    return out;
 }
 
 } // namespace vek

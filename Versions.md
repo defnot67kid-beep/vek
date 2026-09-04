@@ -583,3 +583,8 @@ Do not create separate `CHANGELOG_*.md`, `UPDATE_GITHUB_*.md` or feature-specifi
 - Installer/runtime safety refinements
 - Interactive UI/runtime iteration
 - Secondary-motion and character-system groundwork for richer rigs
+
+## 3.2.0
+- Camera Framework 1.0: lens/rig/shake/constraint/shot/sequence definitions and blend helpers.
+- Physics Definitions v0.4: richer contact, scene, drivetrain, aero, sensor, snapshot and network-sync contracts.
+- Deterministic lightweight VehicleDynamicsModel for host-side vehicle simulation.

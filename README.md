@@ -401,3 +401,6 @@ The Windows installer discovers the newest **published GitHub Release** from Git
 ## VEK 3.1 Modern UI
 
 VEK 3.1 adds a modern token-driven dark/light GUI design system, polished widget rendering contracts, focus-visible interaction, modern scrollbars/scroll shadows, editor-grade viewport framing, and upgraded graph/timeline presentation while preserving the VEK 3.0 widget tree and scripting API. See `docs/UI_MODERN_3_1.md` and `docs/UI_MIGRATION_3_0_TO_3_1.md`.
+
+### VEK 3.2 Camera + Physics
+VEK 3.2 adds Camera Framework 1.0 and Physics Definitions v0.4. See `docs/RELEASE_NOTES_V3.2.0.md`.

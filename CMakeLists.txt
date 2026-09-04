@@ -133,6 +133,10 @@ if(VEK_BUILD_TESTS)
     target_link_libraries(vek_modern_gui_visual_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_modern_gui_visual COMMAND vek_modern_gui_visual_tests)
 
+    add_executable(vek_camera_physics_v32_tests tests/camera_physics_v32_tests.cpp)
+    target_link_libraries(vek_camera_physics_v32_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_camera_physics_v32 COMMAND vek_camera_physics_v32_tests)
+
     add_executable(vek_version_system_tests tests/version_system_tests.cpp)
     target_link_libraries(vek_version_system_tests PRIVATE VEK::Runtime)
     target_compile_definitions(vek_version_system_tests PRIVATE VEK_EXPECTED_VERSION=\"${VEK_VERSION}\")
