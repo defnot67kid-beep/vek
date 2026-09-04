@@ -63,7 +63,7 @@ if(VEK_BUILD_C_ABI)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
     target_compile_definitions(vek_c PRIVATE VEK_C_EXPORTS=1)
-    set_target_properties(vek_c PROPERTIES OUTPUT_NAME "vek")
+    set_target_properties(vek_c PROPERTIES OUTPUT_NAME "vek" EXPORT_NAME CABI)
     add_library(VEK::CABI ALIAS vek_c)
 endif()
 
@@ -167,9 +167,10 @@ if(VEK_BUILD_TESTS)
 endif()
 
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 install(TARGETS vek_runtime EXPORT VEKTargets ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 if(VEK_BUILD_C_ABI)
-  install(TARGETS vek_c
+  install(TARGETS vek_c EXPORT VEKTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -182,9 +183,23 @@ if(WIN32 AND VEK_BUILD_CLI AND VEK_BUILD_INSTALLER)
 endif()
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} PATTERN "VekVersion.h.in" EXCLUDE)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/vek/VekVersion.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/vek)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VEKConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/VEKConfig.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/VEK")
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/VEKConfigVersion.cmake"
+    VERSION "${PROJECT_VERSION}"
+    COMPATIBILITY SameMajorVersion)
+
 install(EXPORT VEKTargets FILE VEKTargets.cmake NAMESPACE VEK:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VEK)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/VEKConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/VEKConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VEK)
 
 # Files installed for relocatable/portable distributions.
-install(FILES VERSION LICENSE README.md INSTALL_PATH.cmd UNINSTALL_PATH.cmd BUILD_PORTABLE_WINDOWS.bat DESTINATION .)
+install(FILES VERSION LICENSE README.md INSTALL_PATH.cmd UNINSTALL_PATH.cmd UPDATE_POLICY release-version.json BUILD_PORTABLE_WINDOWS.bat DESTINATION .)
 install(DIRECTORY examples/ DESTINATION examples)
 install(DIRECTORY docs/ DESTINATION docs)

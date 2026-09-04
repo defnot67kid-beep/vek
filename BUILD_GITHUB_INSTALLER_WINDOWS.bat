@@ -7,6 +7,10 @@ if errorlevel 1 exit /b 1
 python tools\version_manager.py check
 if errorlevel 1 exit /b 1
 
+for %%F in (UPDATE_POLICY release-version.json) do (
+  if not exist "%%F" (echo [VEK] Required release file is missing: %%F& exit /b 1)
+)
+
 where go >nul 2>nul
 if errorlevel 1 (
   echo [VEK] Go 1.23+ is required to build the GitHub installer.
