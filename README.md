@@ -1,6 +1,6 @@
 # VEK
 
-VEK 2.8.0 is the current stable line.
+VEK 3.0.0 ("VEK UI Next") is the current stable line. It builds on the VEK 2.8 retained GUI framework with foundational modern-UI systems: reactive state, a CSS-like style cascade, a centralized command architecture, and list/tree/table virtualization. See `docs/UI_NEXT.md` for full scope and `docs/UI_MIGRATION_2_8_TO_3_0.md` for migration notes.
 
 
 ## VEK 2.8 — GUI Framework major update
@@ -64,7 +64,7 @@ See `docs/PHYSICS_SYSTEM.md` and `examples/hair_physics.vek`.
 
 VEK started as the secure gameplay scripting language for the Custom Vehicle Game, but the runtime is designed to be usable by other applications as well. It keeps one canonical language/runtime implementation and exposes safe host APIs instead of requiring every host language to reimplement VEK.
 
-Current version: **2.8.0**
+Current version: **3.0.0**
 
 ## What VEK is designed for
 

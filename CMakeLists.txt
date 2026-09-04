@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(VEK VERSION 2.8.0 LANGUAGES C CXX)
+project(VEK VERSION 3.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -26,6 +26,10 @@ add_library(vek_runtime STATIC
     src/VekDiagnosticsSystems.cpp
     src/VekRuntimeSystems.cpp
     src/VekGuiFramework.cpp
+    src/VekUiReactive.cpp
+    src/VekUiStyle.cpp
+    src/VekUiCommands.cpp
+    src/VekUiVirtualization.cpp
 )
 target_include_directories(vek_runtime PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -106,6 +110,10 @@ if(VEK_BUILD_TESTS)
     add_executable(vek_gui_framework_tests tests/gui_framework_tests.cpp)
     target_link_libraries(vek_gui_framework_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_gui_framework_v28 COMMAND vek_gui_framework_tests)
+
+    add_executable(vek_ui_next_tests tests/ui_next_tests.cpp)
+    target_link_libraries(vek_ui_next_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_ui_next COMMAND vek_ui_next_tests)
 
     if(VEK_BUILD_C_ABI)
         add_executable(vek_c_api_tests tests/c_api_tests.c)

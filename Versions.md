@@ -1,3 +1,9 @@
+## VEK 3.0.0 — VEK UI Next (major GUI generation)
+- Added the foundational systems for a modern declarative/reactive UI generation: `VekUiReactive` (signals, lazily-cached computed values, dependency-tracked effects/watchers, batched writes), `VekUiStyle` (CSS-like cascade: class/ID/descendant/pseudo-state selectors, specificity, theme design tokens with `var()`, inherited properties, a real `.vek` style/theme block parser), `VekUiCommands` (centralized command registry: id/label/icon/shortcut/enabled/checked/capability-gated execute, shared by toolbar/menu/shortcut/palette callers), and `VekUiVirtualization` (uniform, variable-height and 2D-grid visible-range computation so lists/trees/tables/grids only materialize on-screen + overscan rows regardless of total item count).
+- These are new, independently-testable modules (see `tests/ui_next_tests.cpp`) layered on top of, not replacing, the VEK 2.8 retained `GuiFramework`; all existing `gui_*`/`ui_*` APIs continue to work unchanged.
+- See `docs/UI_NEXT.md` for the architecture, scope, and an honest list of what in the original 31-point brief is implemented now vs. designed-but-not-yet-built in this generation.
+- Version bumped to 3.0.0 (major) to reflect this is the start of a new UI generation, not an incremental 2.x update.
+
 ## VEK 2.8.0 — GUI Framework
 - Added a retained-mode `GuiFramework` alongside the backward-compatible immediate GUI APIs.
 - Added 50+ widget types for game HUDs, menus, windows, editor tooling, data views and advanced controls.
