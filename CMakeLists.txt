@@ -34,6 +34,8 @@ add_library(vek_runtime STATIC
     src/VekSdkSystems.cpp
     src/VekAuthoritySystems.cpp
     src/VekPhysicsSystems.cpp
+    src/VekMotorSystems.cpp
+    src/VekSpacecraftSystems.cpp
     src/VekInteractiveUiSystems.cpp
     src/VekDiagnosticsSystems.cpp
     src/VekRuntimeSystems.cpp
@@ -143,6 +145,14 @@ if(VEK_BUILD_TESTS)
     add_executable(vek_ui_platform_v33_tests tests/ui_platform_v33_tests.cpp)
     target_link_libraries(vek_ui_platform_v33_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_ui_platform_v33 COMMAND vek_ui_platform_v33_tests)
+
+    add_executable(vek_motor_systems_tests tests/motor_systems_tests.cpp)
+    target_link_libraries(vek_motor_systems_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_motor_wiring_v34 COMMAND vek_motor_systems_tests)
+
+    add_executable(vek_spacecraft_systems_tests tests/spacecraft_systems_tests.cpp)
+    target_link_libraries(vek_spacecraft_systems_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_spacecraft_v35 COMMAND vek_spacecraft_systems_tests)
 
     add_executable(vek_version_system_tests tests/version_system_tests.cpp)
     target_link_libraries(vek_version_system_tests PRIVATE VEK::Runtime)

@@ -1,6 +1,6 @@
 {
-  "version": "3.3.0",
-  "tag": "v3.3.0",
-  "windows_asset": "VEK-v3.3.0-windows-x64.zip",
+  "version": "3.5.0",
+  "tag": "v3.5.0",
+  "windows_asset": "VEK-v3.5.0-windows-x64.zip",
   "installer_asset": "VekInstaller.zip"
 }
