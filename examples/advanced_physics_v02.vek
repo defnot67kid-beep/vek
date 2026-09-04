@@ -1,7 +1,0 @@
-// Physics Definitions v0.2 example. Register the registry natives in the host first.
-fn define_physics_v02() {
-    physics_v02_definition_register("material", {id:"material.rubber", static_friction:1.1, dynamic_friction:0.95, restitution:0.08});
-    physics_v02_definition_register("rigid_body", {id:"body.chassis", type:"dynamic", mass:1280, continuous_collision:true});
-    physics_v02_definition_register("vehicle", {id:"vehicle.prototype", chassis_body_id:"body.chassis", engine_force:9000, brake_force:14000});
-    return physics_v02_version();
-}

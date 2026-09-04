@@ -1,5 +1,0 @@
-# Example of the style used by the vehicle game.
-fn impact_damage(speed, threshold, scale) {
-    if speed <= threshold { return 0; }
-    return (speed - threshold) * scale;
-}
