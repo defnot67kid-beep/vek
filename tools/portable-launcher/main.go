@@ -2,14 +2,17 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 const defaultRepo = "https://github.com/defnot67kid-beep/vek.git"
@@ -17,6 +20,11 @@ const defaultRepo = "https://github.com/defnot67kid-beep/vek.git"
 type semver struct {
 	a, b, c int
 	ok      bool
+}
+
+type releaseVersionMetadata struct {
+	Version string `json:"version"`
+	Tag     string `json:"tag"`
 }
 
 func main() {
@@ -29,7 +37,9 @@ func main() {
 	switch args[0] {
 	case "--version", "version", "-v":
 		maybeAutoUpdate()
-		fmt.Println("VEK", installedVersion())
+		fmt.Println("VEK", buildVersion)
+	case "bootstrap-version":
+		fmt.Println(buildVersion)
 	case "--help", "help", "-h":
 		printHelp()
 	case "--install", "install":
@@ -58,13 +68,19 @@ func root() string {
 	p, _ = filepath.Abs(p)
 	return filepath.Dir(p)
 }
-func installedVersion() string {
+func metadataVersion() string {
 	if b, e := os.ReadFile(filepath.Join(root(), "VERSION")); e == nil {
 		v := strings.TrimSpace(string(b))
 		if parse(v).ok {
 			return strings.TrimPrefix(v, "v")
 		}
 	}
+	return "none"
+}
+func installedVersion() string {
+	// This executable is the bootstrap launcher. Its --version must report the
+	// version compiled into the binary, never blindly trust VERSION metadata.
+	// A deployed full VEK runtime replaces this launcher at C:\vek\vek.exe.
 	return buildVersion
 }
 func repo() string {
@@ -84,8 +100,14 @@ func policy() string {
 }
 func launchInstaller() {
 	p := filepath.Join(root(), "VekInstaller.exe")
+	if _, err := os.Stat(p); err != nil {
+		fallback := `C:\vek\VekInstaller.exe`
+		if _, ferr := os.Stat(fallback); ferr == nil {
+			p = fallback
+		}
+	}
 	cmd := exec.Command(p)
-	cmd.Dir = root()
+	cmd.Dir = filepath.Dir(p)
 	if e := cmd.Start(); e != nil {
 		fmt.Fprintln(os.Stderr, "Could not start VEK installer:", e)
 		os.Exit(3)
@@ -142,44 +164,46 @@ func hiddenCommand(exe string, args ...string) *exec.Cmd {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 	return cmd
 }
-func latest() (string, error) {
-	g, e := gitPath()
-	if e != nil {
-		return "", e
-	}
-	cmd := hiddenCommand(g, "ls-remote", "--tags", "--refs", repo())
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	out, e := cmd.Output()
-	if e != nil {
-		return "", e
-	}
-	type item struct {
-		v semver
-		s string
-	}
-	var all []item
-	for _, ln := range strings.Split(string(out), "\n") {
-		f := strings.Fields(ln)
-		if len(f) < 2 {
-			continue
-		}
-		const m = "refs/tags/v"
-		i := strings.Index(f[1], m)
-		if i < 0 {
-			continue
-		}
-		s := strings.TrimPrefix(f[1][i+len("refs/tags/"):], "v")
-		v := parse(s)
-		if v.ok {
-			all = append(all, item{v, s})
-		}
-	}
-	if len(all) == 0 {
-		return "", fmt.Errorf("no semantic version tags")
-	}
-	sort.Slice(all, func(i, j int) bool { return cmp(all[i].v, all[j].v) < 0 })
-	return all[len(all)-1].s, nil
+func repoWebBase(repo string) string {
+	s := strings.TrimSpace(repo)
+	s = strings.TrimSuffix(s, ".git")
+	return strings.TrimRight(s, "/")
 }
+
+func latest() (string, error) {
+	url := repoWebBase(repo()) + "/releases/latest/download/release-version.json"
+	client := &http.Client{Timeout: 20 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "VEK-Bootstrap/"+buildVersion)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP %d resolving latest published VEK release", resp.StatusCode)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if err != nil {
+		return "", err
+	}
+	var meta releaseVersionMetadata
+	if err := json.Unmarshal(b, &meta); err != nil {
+		return "", err
+	}
+	v := strings.TrimPrefix(strings.TrimSpace(meta.Version), "v")
+	if !parse(v).ok {
+		return "", fmt.Errorf("latest release metadata has invalid version %q", meta.Version)
+	}
+	if meta.Tag != "" && meta.Tag != "v"+v {
+		return "", fmt.Errorf("release tag/version mismatch")
+	}
+	return v, nil
+}
+
 func checkUpdate(printResult bool) bool {
 	l, e := latest()
 	if e != nil {
@@ -269,13 +293,19 @@ func doctor() {
 		fmt.Println("[FAIL] Git not found")
 		fail++
 	}
+	meta := metadataVersion()
+	fmt.Println("[INFO] Bootstrap binary:", buildVersion)
+	fmt.Println("[INFO] VERSION metadata:", meta)
+	if meta != "none" && meta != buildVersion {
+		fmt.Println("[WARN] VERSION metadata differs from this bootstrap binary. Run VekInstaller.exe to repair/update.")
+	}
 	fmt.Println("[INFO] Update policy:", policy())
 	if fail > 0 {
 		os.Exit(4)
 	}
 }
 func printHelp() {
-	fmt.Printf(`VEK Programming Language %s
+	fmt.Printf(`VEK Bootstrap %s
 
 Usage:
   vek --version             Show installed VEK version

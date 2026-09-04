@@ -50,16 +50,21 @@ pushd tools\github-installer
 go build -trimpath -ldflags "-s -w -H=windowsgui" -o "..\..\%PKG_DIR%\VekInstaller.exe" .
 if errorlevel 1 (popd & exit /b 1)
 popd
+if not exist build-installer mkdir build-installer
+pushd tools\portable-launcher
+go build -trimpath -ldflags "-s -w" -o "..\..\build-installer\vek.exe" .
+if errorlevel 1 (popd & exit /b 1)
+popd
 >"%PKG_DIR%\REPOSITORY.txt" echo https://github.com/defnot67kid-beep/vek.git
 copy /y "docs\PORTABLE_RELEASE.md" "%PKG_DIR%\PORTABLE_RELEASE.md" >nul
-copy /y "docs\RELEASE_NOTES_V2.3.0.md" "%PKG_DIR%\RELEASE_NOTES_V2.3.0.md" >nul
+copy /y "docs\RELEASE_NOTES_V3.0.2.md" "%PKG_DIR%\RELEASE_NOTES_V3.0.2.md" >nul
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$root=(Resolve-Path '%PKG_DIR%').Path; $files=Get-ChildItem $root -File -Recurse ^| Where-Object { $_.Name -ne 'VekInstaller.exe' } ^| Sort-Object FullName; $lines=foreach($f in $files){$h=(Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLowerInvariant(); $r=[IO.Path]::GetRelativePath($root,$f.FullName).Replace('\','/'); $h+'  '+$r}; $lines ^| Set-Content -Encoding ascii (Join-Path $root 'manifest.sha256'); Compress-Archive -Path $root -DestinationPath '%PKG_DIR%.zip' -CompressionLevel Optimal"
 if errorlevel 1 exit /b 1
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$h=(Get-FileHash -Algorithm SHA256 '%PKG_DIR%.zip').Hash.ToLowerInvariant(); ($h+'  %PKG_DIR%.zip') ^| Set-Content -Encoding ascii '%PKG_DIR%.zip.sha256'; New-Item -ItemType Directory -Force -Path 'installer-stage' ^| Out-Null; Copy-Item '%PKG_DIR%\VekInstaller.exe','%PKG_DIR%\VERSION','%PKG_DIR%\REPOSITORY.txt' 'installer-stage' -Force; if(Test-Path 'VekInstaller.zip'){Remove-Item 'VekInstaller.zip' -Force}; Compress-Archive -Path 'installer-stage\*' -DestinationPath 'VekInstaller.zip' -CompressionLevel Optimal; $ih=(Get-FileHash -Algorithm SHA256 'VekInstaller.zip').Hash.ToLowerInvariant(); ($ih+'  VekInstaller.zip') ^| Set-Content -Encoding ascii 'VekInstaller.zip.sha256'; Remove-Item 'installer-stage' -Recurse -Force"
+  "$h=(Get-FileHash -Algorithm SHA256 '%PKG_DIR%.zip').Hash.ToLowerInvariant(); ($h+'  %PKG_DIR%.zip') ^| Set-Content -Encoding ascii '%PKG_DIR%.zip.sha256'; New-Item -ItemType Directory -Force -Path 'installer-stage' ^| Out-Null; Copy-Item '%PKG_DIR%\VekInstaller.exe','build-installer\vek.exe','%PKG_DIR%\VERSION','%PKG_DIR%\REPOSITORY.txt','UPDATE_POLICY','release-version.json','README.md' 'installer-stage' -Force; if(Test-Path 'VekInstaller.zip'){Remove-Item 'VekInstaller.zip' -Force}; Compress-Archive -Path 'installer-stage\*' -DestinationPath 'VekInstaller.zip' -CompressionLevel Optimal; $ih=(Get-FileHash -Algorithm SHA256 'VekInstaller.zip').Hash.ToLowerInvariant(); ($ih+'  VekInstaller.zip') ^| Set-Content -Encoding ascii 'VekInstaller.zip.sha256'; Remove-Item 'installer-stage' -Recurse -Force"
 if errorlevel 1 exit /b 1
 
 "%PKG_DIR%\vek.exe" doctor

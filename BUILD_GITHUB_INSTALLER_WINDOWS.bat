@@ -19,7 +19,13 @@ go build -trimpath -ldflags "-s -w -H=windowsgui" -o ..\..\build-installer\VekIn
 if errorlevel 1 (popd & exit /b 1)
 popd
 copy /y VERSION build-installer\VERSION >nul
+copy /y UPDATE_POLICY build-installer\UPDATE_POLICY >nul
+copy /y release-version.json build-installer\release-version.json >nul
 >build-installer\REPOSITORY.txt echo https://github.com/defnot67kid-beep/vek.git
+pushd tools\portable-launcher
+go build -trimpath -ldflags "-s -w" -o ..\..\build-installer\vek.exe .
+if errorlevel 1 (popd & exit /b 1)
+popd
 
 echo [VEK] Built: %CD%\build-installer\VekInstaller.exe
 exit /b 0

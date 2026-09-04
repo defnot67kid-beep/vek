@@ -1,3 +1,13 @@
+## VEK 3.0.2 — Installer reliability + published-release discovery
+- Changed update discovery from "newest Git tag" to the newest published release metadata (`release-version.json`), so tags without runtime assets are no longer offered as installable updates.
+- Removed the hard requirement to launch `VekInstaller.exe` from `C:\vek`; the installer now stages the current GUI installer into `C:\vek` safely when started from Downloads or a version cache.
+- Made Git optional for install/update. When Git is unavailable or a managed checkout is damaged, the installer falls back to the exact tagged GitHub source archive while the verified Windows runtime still comes from signed release assets/checksums.
+- Fixed installer self-version drift: a bootstrapped newer installer persists itself back to root `C:\vek\VekInstaller.exe` instead of leaving an old root installer that re-bootstraps forever.
+- Fixed the bootstrap `vek.exe --version` path so it reports the binary's compiled version instead of blindly trusting the `VERSION` file.
+- Added visible installer status/version/detail text, meaningful action labels (`LATEST / UPDATE`, `CLEAN REPAIR`, `SOURCE ONLY`) and clearer `AUTO CHECK` wording.
+- Added source verification that works for both Git checkouts and archive-based source installs.
+- Preserved SHA-256 verification for installer/runtime release assets and exact runtime/version checks before deployment.
+
 ## VEK 3.0.1 — Installer + version-system hardening
 - Made the repository `VERSION` file the canonical release version used by CMake and generated public runtime headers.
 - Removed stale 2.8.0 version macros from the VEK 3 runtime.

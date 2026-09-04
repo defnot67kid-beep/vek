@@ -5,6 +5,7 @@ package main
 import (
 	"archive/zip"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -115,6 +116,16 @@ type obstacle struct{ x, w, h float64 }
 type semver struct {
 	major, minor, patch int
 	ok                  bool
+}
+
+// releaseVersionMetadata is published as release-version.json by the VEK
+// release workflow. The installer deliberately discovers published releases
+// through this file instead of treating a Git tag as an installable release.
+type releaseVersionMetadata struct {
+	Version        string `json:"version"`
+	Tag            string `json:"tag"`
+	WindowsAsset   string `json:"windows_asset"`
+	InstallerAsset string `json:"installer_asset"`
 }
 
 type installMode int
@@ -460,6 +471,49 @@ func repoWebBase(repo string) string {
 	return strings.TrimRight(s, "/")
 }
 
+func latestPublishedRelease(repo string) (releaseVersionMetadata, error) {
+	var meta releaseVersionMetadata
+	url := repoWebBase(repo) + "/releases/latest/download/release-version.json"
+	tmp := filepath.Join(os.TempDir(), "vek-release-version-latest.json")
+	_ = os.Remove(tmp)
+	if err := downloadHTTPS(url, tmp, 256*1024); err != nil {
+		return meta, fmt.Errorf("could not resolve latest published VEK release: %w", err)
+	}
+	defer os.Remove(tmp)
+	b, err := os.ReadFile(tmp)
+	if err != nil {
+		return meta, err
+	}
+	if err := json.Unmarshal(b, &meta); err != nil {
+		return meta, fmt.Errorf("invalid release-version.json: %w", err)
+	}
+	meta.Version = strings.TrimPrefix(strings.TrimSpace(meta.Version), "v")
+	if !parseSemver(meta.Version).ok {
+		return meta, fmt.Errorf("release metadata contains invalid version %q", meta.Version)
+	}
+	if meta.Tag == "" {
+		meta.Tag = "v" + meta.Version
+	}
+	if meta.Tag != "v"+meta.Version {
+		return meta, fmt.Errorf("release metadata tag/version mismatch: %s vs %s", meta.Tag, meta.Version)
+	}
+	if meta.WindowsAsset == "" {
+		meta.WindowsAsset = "VEK-v" + meta.Version + "-windows-x64.zip"
+	}
+	if meta.InstallerAsset == "" {
+		meta.InstallerAsset = "VekInstaller.zip"
+	}
+	return meta, nil
+}
+
+func latestPublishedVersion(repo string) string {
+	meta, err := latestPublishedRelease(repo)
+	if err != nil {
+		return "unknown"
+	}
+	return meta.Version
+}
+
 func hasArg(name string) bool {
 	for _, a := range os.Args[1:] {
 		if strings.EqualFold(a, name) {
@@ -628,13 +682,14 @@ func bootstrapLatestInstaller() bool {
 	if hasArg("--no-bootstrap") {
 		return false
 	}
-	git, err := findGit()
+	repo := configuredRepo()
+	meta, err := latestPublishedRelease(repo)
 	if err != nil {
+		bootstrapNote = err.Error()
 		return false
 	}
-	repo := configuredRepo()
-	latest := latestGitHubVersion(git, repo)
-	if latest == "unknown" || compareSemver(parseSemver(version), parseSemver(latest)) >= 0 {
+	latest := meta.Version
+	if compareSemver(parseSemver(version), parseSemver(latest)) >= 0 {
 		return false
 	}
 	base := repoWebBase(repo) + "/releases/download/v" + latest + "/"
@@ -646,14 +701,14 @@ func bootstrapLatestInstaller() bool {
 		if err := os.MkdirAll(tmp, 0755); err != nil {
 			return false
 		}
-		zipPath := filepath.Join(tmp, "VekInstaller.zip")
-		sumPath := filepath.Join(tmp, "VekInstaller.zip.sha256")
-		if err := downloadHTTPS(base+"VekInstaller.zip.sha256", sumPath, 64*1024); err != nil {
-			bootstrapNote = "Latest tag is v" + latest + " but its GitHub Release is missing VekInstaller.zip.sha256"
+		zipPath := filepath.Join(tmp, meta.InstallerAsset)
+		sumPath := filepath.Join(tmp, meta.InstallerAsset+".sha256")
+		if err := downloadHTTPS(base+meta.InstallerAsset+".sha256", sumPath, 64*1024); err != nil {
+			bootstrapNote = "Latest published release v" + latest + " is missing " + meta.InstallerAsset + ".sha256"
 			return false
 		}
-		if err := downloadHTTPS(base+"VekInstaller.zip", zipPath, maxBootstrapPackageBytes); err != nil {
-			bootstrapNote = "Latest tag is v" + latest + " but its GitHub Release is missing VekInstaller.zip"
+		if err := downloadHTTPS(base+meta.InstallerAsset, zipPath, maxBootstrapPackageBytes); err != nil {
+			bootstrapNote = "Latest published release v" + latest + " is missing " + meta.InstallerAsset
 			return false
 		}
 		want, err := parseChecksumFile(sumPath)
@@ -714,12 +769,7 @@ func checkVersionWorker() {
 	installed := installedVersionFromDisk()
 	metadata := installedMetadataVersion()
 	binary := installedBinaryVersion()
-	git, err := findGit()
-	if err != nil {
-		setVersionStatus(installed, "unknown")
-		return
-	}
-	latest := latestGitHubVersion(git, configuredRepo())
+	latest := latestPublishedVersion(configuredRepo())
 	setVersionStatus(installed, latest)
 	if binary != "none" && metadata != "none" && binary != metadata {
 		publish("", "VERSION MISMATCH - vek.exe is v"+binary+" but C:\\vek\\VERSION says v"+metadata+". Use LATEST / UPDATE or CLEAN REPAIR.", -1)
@@ -768,6 +818,100 @@ func stage(n int, status, detail string) {
 	time.Sleep(90 * time.Millisecond)
 }
 
+func stageBootstrapIntoTarget() error {
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return err
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	srcDir := filepath.Dir(exe)
+	// Persist the current GUI installer when it is running from Downloads or a
+	// version cache. Copying to another path is safe; we never overwrite the
+	// executable that is currently running.
+	rootInstaller := filepath.Join(targetDir, "VekInstaller.exe")
+	if !samePath(exe, rootInstaller) {
+		if err := copyFileAtomic(exe, rootInstaller, 0755); err != nil {
+			return err
+		}
+	}
+	// Install the bootstrap launcher only when no vek.exe exists yet. Never
+	// replace a working runtime with the bootstrap during an update.
+	rootLauncher := filepath.Join(targetDir, "vek.exe")
+	if _, err := os.Stat(rootLauncher); os.IsNotExist(err) {
+		candidate := filepath.Join(srcDir, "vek.exe")
+		if st, e := os.Stat(candidate); e == nil && !st.IsDir() {
+			if err := copyFileAtomic(candidate, rootLauncher, 0755); err != nil {
+				return err
+			}
+		}
+	}
+	for _, name := range []string{"REPOSITORY.txt", "UPDATE_POLICY"} {
+		dst := filepath.Join(targetDir, name)
+		if _, e := os.Stat(dst); e == nil {
+			continue
+		}
+		src := filepath.Join(srcDir, name)
+		if st, e := os.Stat(src); e == nil && !st.IsDir() {
+			if err := copyFileAtomic(src, dst, st.Mode().Perm()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func locateSourceRoot(root, wantVersion string) string {
+	candidates := []string{root}
+	entries, _ := os.ReadDir(root)
+	for _, e := range entries {
+		if e.IsDir() {
+			candidates = append(candidates, filepath.Join(root, e.Name()))
+		}
+	}
+	for _, c := range candidates {
+		b, err := os.ReadFile(filepath.Join(c, "VERSION"))
+		if err == nil && strings.TrimPrefix(strings.TrimSpace(string(b)), "v") == wantVersion {
+			return c
+		}
+	}
+	return ""
+}
+
+func syncSource(repo, dir, version string) error {
+	if git, err := findGit(); err == nil {
+		if err := syncRepo(git, repo, dir, version); err == nil {
+			return nil
+		}
+		// Fall through to the HTTPS source archive. A damaged Git checkout or a
+		// missing Git credential helper must not block a binary runtime update.
+	}
+	updates := filepath.Join(targetDir, "updates", "source-v"+version)
+	_ = os.RemoveAll(updates)
+	if err := os.MkdirAll(updates, 0755); err != nil {
+		return err
+	}
+	zipPath := filepath.Join(updates, "source.zip")
+	url := repoWebBase(repo) + "/archive/refs/tags/v" + version + ".zip"
+	if err := downloadHTTPS(url, zipPath, 256*1024*1024); err != nil {
+		return fmt.Errorf("Git unavailable/failed and source archive download failed: %w", err)
+	}
+	extract := filepath.Join(updates, "extract")
+	if err := safeExtractZip(zipPath, extract); err != nil {
+		return err
+	}
+	pkg := locateSourceRoot(extract, version)
+	if pkg == "" {
+		return fmt.Errorf("tagged source archive does not contain VERSION=%s", version)
+	}
+	_ = os.RemoveAll(dir)
+	if err := copyTree(pkg, dir); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, ".vek-source-release"), []byte("v"+version+"\r\n"), 0644)
+}
+
 func installerIsInTargetDir() bool {
 	exe, err := os.Executable()
 	if err != nil {
@@ -806,8 +950,8 @@ func startInstall(mode installMode) {
 }
 
 func installWorkflow(mode installMode) {
-	if !installerIsInTargetDir() {
-		fail("For initial setup, extract VekInstaller.zip directly to C:\\vek. Auto-updated installers may run from C:\\vek\\versions.")
+	if err := stageBootstrapIntoTarget(); err != nil {
+		fail("Could not stage the VEK installer into C:\\vek: " + err.Error())
 		return
 	}
 	modeName := "LATEST / UPDATE"
@@ -819,18 +963,14 @@ func installWorkflow(mode installMode) {
 	}
 	stage(1, "PRE-FLIGHT - "+modeName, "Checking C:\\vek, Git, update policy and repository configuration...")
 
-	git, err := findGit()
-	if err != nil {
-		fail("Git for Windows was not found on PATH. Install Git and run VEK installer again.")
-		return
-	}
 	repo := configuredRepo()
-	latest := latestGitHubVersion(git, repo)
-	if latest == "unknown" {
-		fail("Could not resolve the latest semantic-version Git tag from " + repo)
+	meta, err := latestPublishedRelease(repo)
+	if err != nil {
+		fail(err.Error())
 		return
 	}
-	stage(2, "GITHUB - release selected", repo+" @ v"+latest)
+	latest := meta.Version
+	stage(2, "GITHUB - published release selected", repo+" @ v"+latest)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		fail(err.Error())
 		return
@@ -847,9 +987,9 @@ func installWorkflow(mode installMode) {
 		stage(3, "SOURCE - preparing managed checkout", repoDir)
 	}
 
-	stage(4, "DOWNLOADING VEK", "Press SPACE to jump over obstacles while Git is working")
-	if err := syncRepo(git, repo, repoDir, latest); err != nil {
-		fail("GitHub clone/update failed: " + err.Error())
+	stage(4, "DOWNLOADING VEK SOURCE", "Using Git when available; otherwise using the exact tagged GitHub source archive.")
+	if err := syncSource(repo, repoDir, latest); err != nil {
+		fail("Source synchronization failed: " + err.Error())
 		return
 	}
 
@@ -862,9 +1002,9 @@ func installWorkflow(mode installMode) {
 	if mode == modeSourceOnly {
 		stage(5, "SOURCE - checkout verified", "VEK source v"+sourceVersion+" is available at "+repoDir)
 		stage(6, "SOURCE - no launcher changes requested", "Executable/PATH installation skipped by Source Only mode.")
-		stage(7, "VERIFY - checking .git metadata", filepath.Join(repoDir, ".git"))
-		if _, e := os.Stat(filepath.Join(repoDir, ".git")); e != nil {
-			fail("Managed Git clone verification failed.")
+		stage(7, "VERIFY - checking source version", filepath.Join(repoDir, "VERSION"))
+		if readSourceVersion(repoDir) != sourceVersion {
+			fail("Managed source verification failed.")
 			return
 		}
 		stage(8, "METADATA - recording repository", repo)
@@ -875,7 +1015,7 @@ func installWorkflow(mode installMode) {
 	}
 
 	stage(5, "RUNTIME - downloading verified release", "Installing the runtime package that exactly matches tag v"+latest)
-	if err := installRuntimeRelease(latest); err != nil {
+	if err := installRuntimeRelease(latest, meta.WindowsAsset); err != nil {
 		fail(err.Error())
 		return
 	}
@@ -897,9 +1037,9 @@ func installWorkflow(mode installMode) {
 		return
 	}
 
-	stage(8, "VERIFY - checking managed clone and runtime", filepath.Join(repoDir, ".git"))
-	if _, e := os.Stat(filepath.Join(repoDir, ".git")); e != nil {
-		fail("Git clone verification failed.")
+	stage(8, "VERIFY - checking managed source and runtime", filepath.Join(repoDir, "VERSION"))
+	if readSourceVersion(repoDir) != sourceVersion {
+		fail("Managed source verification failed.")
 		return
 	}
 	if _, e := os.Stat(filepath.Join(targetDir, "vek.exe")); e != nil {
@@ -913,7 +1053,7 @@ func installWorkflow(mode installMode) {
 
 func policyName(p updatePolicy) string {
 	if p == policyAuto {
-		return "AUTO UPDATE"
+		return "AUTO CHECK"
 	}
 	return "MANUAL UPDATE"
 }
@@ -949,7 +1089,7 @@ func fail(msg string) {
 	installing = false
 	installFailed = true
 	installDone = false
-	statusLine = "INSTALL ERROR - VEK was not installed"
+	statusLine = "INSTALL / UPDATE ERROR - existing VEK files were preserved where possible"
 	detailLine = msg
 	stateMu.Unlock()
 	if hwndMain != 0 {
@@ -1125,8 +1265,10 @@ func downloadVerifiedReleaseZip(version, asset, dstDir string) (string, error) {
 	return zipPath, nil
 }
 
-func installRuntimeRelease(version string) error {
-	asset := "VEK-v" + version + "-windows-x64.zip"
+func installRuntimeRelease(version, asset string) error {
+	if strings.TrimSpace(asset) == "" {
+		asset = "VEK-v" + version + "-windows-x64.zip"
+	}
 	updates := filepath.Join(targetDir, "updates", "v"+version)
 	_ = os.RemoveAll(updates)
 	zipPath, err := downloadVerifiedReleaseZip(version, asset, updates)
@@ -1536,6 +1678,7 @@ func drawRunner(hdc syscall.Handle, w, h int) {
 		}
 	})
 	withPen(hdc, rgb(65, 255, 155), 3, func() { line(hdc, 0, ground, w, ground) })
+	text(hdc, fmt.Sprintf("RUNNER  SPACE=JUMP   SCORE %d   CRASHES %d", score, crashes), RECT{18, int32(top + 8), int32(w - 18), int32(top + 34)}, rgb(91, 180, 143), fontSmall, DT_LEFT|DT_SINGLELINE)
 	for _, o := range obstacles {
 		pts := []POINT{{int32(o.x), int32(ground)}, {int32(o.x + o.w/2), int32(float64(ground) - o.h)}, {int32(o.x + o.w), int32(ground)}}
 		b, _, _ := procCreateSolidBrush.Call(rgb(38, 155, 105))
@@ -1600,12 +1743,21 @@ func paint(hwnd syscall.Handle) {
 	stateMu.Unlock()
 
 	buttons := downloadRects(w, h)
+	labels := []string{"LATEST / UPDATE", "CLEAN REPAIR", "SOURCE ONLY"}
 	for i, r := range buttons {
-		drawButton(hdc, r, "DOWNLOAD", busy && mode == installMode(i))
+		drawButton(hdc, r, labels[i], busy && mode == installMode(i))
 	}
 	autoR, manualR := policyRects(w, h)
-	drawButton(hdc, autoR, "AUTO", pol == policyAuto)
+	drawButton(hdc, autoR, "AUTO CHECK", pol == policyAuto)
 	drawButton(hdc, manualR, "MANUAL", pol == policyManual)
+
+	stateMu.Lock()
+	statusCopy, detailCopy, versionCopy := statusLine, detailLine, versionLine
+	stateMu.Unlock()
+	statusY := int(float64(h) * 0.30)
+	text(hdc, versionCopy, RECT{int32(w / 10), int32(statusY - 44), int32(w * 9 / 10), int32(statusY - 22)}, rgb(111, 255, 177), fontSmall, DT_CENTER|DT_SINGLELINE)
+	text(hdc, statusCopy, RECT{int32(w / 12), int32(statusY - 20), int32(w * 11 / 12), int32(statusY + 4)}, rgb(235, 255, 244), fontBody, DT_CENTER|DT_SINGLELINE)
+	text(hdc, detailCopy, RECT{int32(w / 12), int32(statusY + 6), int32(w * 11 / 12), int32(statusY + 30)}, rgb(151, 187, 172), fontSmall, DT_CENTER|DT_SINGLELINE)
 
 	draw3DProgressBar(hdc, w, h, pct, busy, done)
 	drawRunner(hdc, w, h)
@@ -1715,7 +1867,7 @@ func main() {
 	runtime.LockOSThread()
 	policy = loadPolicy()
 	if bootstrapNote != "" {
-		detailLine = bootstrapNote + ". Create/publish the release assets or use the v3.0.1+ release workflow."
+		detailLine = bootstrapNote + ". Create/publish the release assets or publish the required release assets."
 	}
 	fontSmall = createFont(14, 400, "Consolas")
 	fontBody = createFont(17, 500, "Consolas")
@@ -1747,7 +1899,7 @@ func main() {
 	raw, _, e := procCreateWindowExW.Call(
 		0,
 		uintptr(unsafe.Pointer(className)),
-		uintptr(unsafe.Pointer(utf16("VEK Installer"))),
+		uintptr(unsafe.Pointer(utf16("VEK Installer v"+version))),
 		WS_POPUP|WS_VISIBLE,
 		0, 0, sw, sh,
 		0, 0, uintptr(hInst), 0,
