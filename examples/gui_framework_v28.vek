@@ -1,0 +1,13 @@
+fn make_editor_ui() {
+    ui_set_viewport(1280, 720, 1.0);
+    ui_create({id:"root",type:"root",layout:{mode:"column",width:{mode:"fill"},height:{mode:"fill"},gap:8,padding:10}});
+    ui_create({id:"top",type:"toolbar",parent:"root",layout:{mode:"row",height:50,gap:8}});
+    ui_create({id:"save",type:"button",parent:"top",text:"Save",layout:{width:100,height:38}});
+    ui_create({id:"build",type:"button",parent:"top",text:"Build",layout:{width:100,height:38}});
+    ui_create({id:"body",type:"split_pane",parent:"root",layout:{mode:"row",width:{mode:"fill"},height:{mode:"fill"},gap:8}});
+    ui_create({id:"parts",type:"list",parent:"body",layout:{width:280,height:{mode:"fill"}}});
+    ui_create({id:"scene",type:"viewport",parent:"body",layout:{width:{mode:"fill"},height:{mode:"fill"}}});
+    ui_layout();
+    ui_animate("parts", "opacity", 0, 1, 0.25, "ease_out");
+    return ui_stats();
+}

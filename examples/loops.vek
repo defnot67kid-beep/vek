@@ -1,0 +1,10 @@
+fn main() {
+    let i = 1;
+    let total = 0;
+    while i <= 10 {
+        total = total + i;
+        i = i + 1;
+    }
+    println("1..10 =", total);
+    return total;
+}

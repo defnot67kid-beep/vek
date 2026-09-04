@@ -1,0 +1,27 @@
+fn setup() {
+    animation_register({
+        id: "example.open_door",
+        duration: 1.0,
+        loop: false,
+        markers: [
+            { name: "handle", time: 0.2 },
+            { name: "opened", time: 0.9 }
+        ]
+    });
+
+    prompt_register({
+        id: "example.enter",
+        action_text: "Enter Workspace",
+        object_text: "Engineering Door",
+        input_key: "E",
+        max_distance: 3.5
+    });
+
+    println("animation duration:", animation_duration("example.open_door"));
+    println("prompt distance:", prompt_max_distance("example.enter"));
+    return true;
+}
+
+fn main() {
+    return setup();
+}

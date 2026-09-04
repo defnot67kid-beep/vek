@@ -1,0 +1,21 @@
+fn build() {
+    gui_define_style("responsive_card", {
+        padding: 12,
+        responsive: true,
+        font_size: 22,
+        min_font_size: 10,
+        max_font_size: 24,
+        max_lines: 3,
+        line_height: 1.15,
+        auto_fit: true,
+        wrap: true,
+        ellipsis: true,
+        clip_text: true,
+        text_align: "center"
+    });
+
+    gui_begin_window("demo", "RESPONSIVE VEK GUI", "responsive_card");
+    gui_label("This text can shrink, wrap, clip and ellipsize instead of overflowing its host rectangle.", "responsive_card");
+    gui_button("ok", "CONTINUE", "responsive_card");
+    gui_end_window();
+}

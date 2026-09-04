@@ -1,0 +1,14 @@
+// VEK 1.1 advanced GUI command example.
+// A host must create vek::GuiSystem, call RegisterNatives(engine), render the
+// emitted command buffer, and feed button/slider/text events back to it.
+fn build_settings_ui() {
+    gui_begin_window("settings", "Engineering Settings", 80, 60, 520, 420);
+    gui_label("Vehicle Test Configuration");
+    let gravity = gui_slider("gravity", "Gravity", 15.5, 1.0, 40.0);
+    let invincible = gui_checkbox("invincible", "Invincibility", false);
+    gui_progress("build_progress", 72, 0, 100);
+    if gui_button("apply", "Apply") {
+        println("apply", gravity, invincible);
+    }
+    gui_end_window();
+}

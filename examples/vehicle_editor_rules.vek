@@ -1,0 +1,16 @@
+// VEK 1.2 example: host-controlled vehicle editor rules.
+fn can_build(mode, structural, engines, seats, wheels, movement, money, cost) {
+    if !editor_basic_valid(structural, engines, seats, wheels, movement) { return false; }
+    if mode == "survival" && money < cost { return false; }
+    return true;
+}
+
+fn effective_cost(mode, base_cost) {
+    return mode_part_cost(mode, base_cost);
+}
+
+fn main() {
+    println("Sandbox $400 part cost:", effective_cost("sandbox", 400));
+    println("Survival build valid:", can_build("survival", 1, 1, 1, 4, 4, 2500, 1200));
+    return 0;
+}

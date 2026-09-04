@@ -1,0 +1,17 @@
+// VEK 2.3 secondary-motion profile example.
+// Games can register profiles and map them to hair/cloth/rope systems.
+
+secondary_motion_profile_register({
+    id: "hair.curly",
+    gravity: 5.5,
+    damping: 0.91,
+    stiffness: 0.42,
+    air_drag: 0.05,
+    inertia: 0.95,
+    wind_influence: 0.8,
+    max_dt: 0.033333,
+    constraint_iterations: 6,
+    max_substeps: 4,
+    collision_padding: 0.012,
+    max_speed: 10
+});

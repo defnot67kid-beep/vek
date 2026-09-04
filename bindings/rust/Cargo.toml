@@ -1,0 +1,9 @@
+[package]
+name = "vek-runtime"
+version = "1.7.0"
+edition = "2021"
+description = "Safe Rust wrapper for the VEK C ABI"
+license = "MIT"
+[lib]
+name = "vek"
+path = "src/lib.rs"
