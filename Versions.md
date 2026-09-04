@@ -1,3 +1,11 @@
+## VEK 3.0.1 — Installer + version-system hardening
+- Made the repository `VERSION` file the canonical release version used by CMake and generated public runtime headers.
+- Removed stale 2.8.0 version macros from the VEK 3 runtime.
+- Upgraded the GitHub installer to install a verified release runtime that matches the selected tag instead of copying an older bundled `vek.exe`.
+- Added exact-tag source checkout, release-package verification, versioned runtime archives, and explicit binary/metadata mismatch detection.
+- Added release automation that publishes `VEK-vX.Y.Z-windows-x64.zip`, `VekInstaller.zip`, SHA-256 companions, and release metadata for each `vX.Y.Z` tag.
+- Added a version-manager/check script so future releases fail fast when metadata drifts.
+
 ## VEK 3.0.0 — VEK UI Next (major GUI generation)
 - Added the foundational systems for a modern declarative/reactive UI generation: `VekUiReactive` (signals, lazily-cached computed values, dependency-tracked effects/watchers, batched writes), `VekUiStyle` (CSS-like cascade: class/ID/descendant/pseudo-state selectors, specificity, theme design tokens with `var()`, inherited properties, a real `.vek` style/theme block parser), `VekUiCommands` (centralized command registry: id/label/icon/shortcut/enabled/checked/capability-gated execute, shared by toolbar/menu/shortcut/palette callers), and `VekUiVirtualization` (uniform, variable-height and 2D-grid visible-range computation so lists/trees/tables/grids only materialize on-screen + overscan rows regardless of total item count).
 - These are new, independently-testable modules (see `tests/ui_next_tests.cpp`) layered on top of, not replacing, the VEK 2.8 retained `GuiFramework`; all existing `gui_*`/`ui_*` APIs continue to work unchanged.

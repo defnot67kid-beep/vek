@@ -1,6 +1,6 @@
 # VEK
 
-VEK 3.0.0 ("VEK UI Next") is the current stable line. It builds on the VEK 2.8 retained GUI framework with foundational modern-UI systems: reactive state, a CSS-like style cascade, a centralized command architecture, and list/tree/table virtualization. See `docs/UI_NEXT.md` for full scope and `docs/UI_MIGRATION_2_8_TO_3_0.md` for migration notes.
+VEK 3.0.1 ("VEK UI Next") is the current stable line. VEK 3.0.1 is the installer/version-system hotfix for the 3.0 generation. It builds on the VEK 2.8 retained GUI framework with foundational modern-UI systems: reactive state, a CSS-like style cascade, a centralized command architecture, and list/tree/table virtualization. See `docs/UI_NEXT.md` for full scope and `docs/UI_MIGRATION_2_8_TO_3_0.md` for migration notes.
 
 
 ## VEK 2.8 — GUI Framework major update
@@ -22,11 +22,9 @@ See `docs/RELEASE_NOTES_V2.7.1.md` for the part-presentation update, plus `docs/
 
 ## Windows GitHub installer
 
-The release workflow builds the responsive native Windows installer from
-`tools/github-installer`. It detects an existing `C:\vek`, clones or updates
-`https://github.com/defnot67kid-beep/vek.git` into `C:\vek\repo`, keeps the
-Win32 UI responsive while Git runs in the background, and adds `C:\vek` to the
-current user's PATH.
+VEK 3.0.1 hardens the installer and release-version system. The repository `VERSION` file is the canonical version source. The installer detects the newest semantic-version tag, checks out that **exact tag** into `C:\vek\repo`, downloads the matching `VEK-vX.Y.Z-windows-x64.zip` GitHub Release asset, verifies its SHA-256 companion, verifies the package `VERSION`, archives the runtime under `C:\vek\versions\vX.Y.Z`, and only then deploys the matching runtime.
+
+A Git tag by itself is not treated as an installable Windows update. `.github/workflows/release-windows.yml` automatically builds the required runtime and `VekInstaller.zip` assets when a matching `vX.Y.Z` tag is pushed. See `docs/VERSION_AND_INSTALLER_SYSTEM_V3.md` and `FIXING_V3_0_0_INSTALL.md`.
 
 
 
@@ -64,7 +62,7 @@ See `docs/PHYSICS_SYSTEM.md` and `examples/hair_physics.vek`.
 
 VEK started as the secure gameplay scripting language for the Custom Vehicle Game, but the runtime is designed to be usable by other applications as well. It keeps one canonical language/runtime implementation and exposes safe host APIs instead of requiring every host language to reimplement VEK.
 
-Current version: **3.0.0**
+Current version: **3.0.1**
 
 ## What VEK is designed for
 

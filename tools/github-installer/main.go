@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	version     = "2.8.0"
 	targetDir   = `C:\vek`
 	defaultRepo = "https://github.com/defnot67kid-beep/vek.git"
 
@@ -204,6 +203,7 @@ var (
 
 	latestVersion    = "unknown"
 	installedVersion = "none"
+	bootstrapNote    = ""
 )
 
 func utf16(s string) *uint16   { p, _ := syscall.UTF16PtrFromString(s); return p }
@@ -343,7 +343,7 @@ func compareSemver(a, b semver) int {
 	return 0
 }
 
-func installedVersionFromDisk() string {
+func installedMetadataVersion() string {
 	b, err := os.ReadFile(filepath.Join(targetDir, "VERSION"))
 	if err != nil {
 		return "none"
@@ -353,6 +353,33 @@ func installedVersionFromDisk() string {
 		return strings.TrimPrefix(s, "v")
 	}
 	return "none"
+}
+
+func installedBinaryVersion() string {
+	exe := filepath.Join(targetDir, "vek.exe")
+	if _, err := os.Stat(exe); err != nil {
+		return "none"
+	}
+	cmd := hiddenCommand(exe, "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return "none"
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	for i := len(fields) - 1; i >= 0; i-- {
+		v := strings.TrimPrefix(fields[i], "v")
+		if parseSemver(v).ok {
+			return v
+		}
+	}
+	return "none"
+}
+
+func installedVersionFromDisk() string {
+	if v := installedBinaryVersion(); v != "none" {
+		return v
+	}
+	return installedMetadataVersion()
 }
 
 func findGit() (string, error) {
@@ -622,9 +649,11 @@ func bootstrapLatestInstaller() bool {
 		zipPath := filepath.Join(tmp, "VekInstaller.zip")
 		sumPath := filepath.Join(tmp, "VekInstaller.zip.sha256")
 		if err := downloadHTTPS(base+"VekInstaller.zip.sha256", sumPath, 64*1024); err != nil {
+			bootstrapNote = "Latest tag is v" + latest + " but its GitHub Release is missing VekInstaller.zip.sha256"
 			return false
 		}
 		if err := downloadHTTPS(base+"VekInstaller.zip", zipPath, maxBootstrapPackageBytes); err != nil {
+			bootstrapNote = "Latest tag is v" + latest + " but its GitHub Release is missing VekInstaller.zip"
 			return false
 		}
 		want, err := parseChecksumFile(sumPath)
@@ -683,6 +712,8 @@ func savePolicy(p updatePolicy) {
 
 func checkVersionWorker() {
 	installed := installedVersionFromDisk()
+	metadata := installedMetadataVersion()
+	binary := installedBinaryVersion()
 	git, err := findGit()
 	if err != nil {
 		setVersionStatus(installed, "unknown")
@@ -690,6 +721,9 @@ func checkVersionWorker() {
 	}
 	latest := latestGitHubVersion(git, configuredRepo())
 	setVersionStatus(installed, latest)
+	if binary != "none" && metadata != "none" && binary != metadata {
+		publish("", "VERSION MISMATCH - vek.exe is v"+binary+" but C:\\vek\\VERSION says v"+metadata+". Use LATEST / UPDATE or CLEAN REPAIR.", -1)
+	}
 	stateMu.Lock()
 	auto := policy == policyAuto
 	busy := installing
@@ -791,7 +825,12 @@ func installWorkflow(mode installMode) {
 		return
 	}
 	repo := configuredRepo()
-	stage(2, "GITHUB - repository selected", repo)
+	latest := latestGitHubVersion(git, repo)
+	if latest == "unknown" {
+		fail("Could not resolve the latest semantic-version Git tag from " + repo)
+		return
+	}
+	stage(2, "GITHUB - release selected", repo+" @ v"+latest)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		fail(err.Error())
 		return
@@ -809,14 +848,15 @@ func installWorkflow(mode installMode) {
 	}
 
 	stage(4, "DOWNLOADING VEK", "Press SPACE to jump over obstacles while Git is working")
-	if err := syncRepo(git, repo, repoDir); err != nil {
+	if err := syncRepo(git, repo, repoDir, latest); err != nil {
 		fail("GitHub clone/update failed: " + err.Error())
 		return
 	}
 
 	sourceVersion := readSourceVersion(repoDir)
-	if sourceVersion == "" {
-		sourceVersion = version
+	if sourceVersion != latest {
+		fail("Tagged source/version mismatch: requested v" + latest + " but checkout declares " + sourceVersion)
+		return
 	}
 
 	if mode == modeSourceOnly {
@@ -834,8 +874,8 @@ func installWorkflow(mode installMode) {
 		return
 	}
 
-	stage(5, "RUNTIME - installing VEK launcher", "The installer itself stays in place; only the VEK CLI launcher is installed")
-	if err := copyPackageFiles(); err != nil {
+	stage(5, "RUNTIME - downloading verified release", "Installing the runtime package that exactly matches tag v"+latest)
+	if err := installRuntimeRelease(latest); err != nil {
 		fail(err.Error())
 		return
 	}
@@ -974,7 +1014,8 @@ func runGitProgress(git string, args ...string) error {
 	}
 	return nil
 }
-func syncRepo(git, repo, dir string) error {
+func syncRepo(git, repo, dir, version string) error {
+	tag := "v" + strings.TrimPrefix(version, "v")
 	if _, e := os.Stat(filepath.Join(dir, ".git")); e == nil {
 		if e = runGitProgress(git, "-C", dir, "remote", "set-url", "origin", repo); e != nil {
 			return e
@@ -982,17 +1023,160 @@ func syncRepo(git, repo, dir string) error {
 		if e = runGitProgress(git, "-C", dir, "fetch", "--progress", "--tags", "--prune", "origin"); e != nil {
 			return e
 		}
-		if e = runGitProgress(git, "-C", dir, "reset", "--hard", "origin/main"); e != nil {
+		if e = runGitProgress(git, "-C", dir, "checkout", "--detach", "--force", tag); e != nil {
 			return e
 		}
-		return nil
+		return runGitProgress(git, "-C", dir, "reset", "--hard", tag)
 	}
 	if _, e := os.Stat(dir); e == nil {
 		if e = os.RemoveAll(dir); e != nil {
 			return e
 		}
 	}
-	return runGitProgress(git, "clone", "--progress", "--branch", "main", repo, dir)
+	if e := runGitProgress(git, "clone", "--progress", "--no-checkout", repo, dir); e != nil {
+		return e
+	}
+	if e := runGitProgress(git, "-C", dir, "fetch", "--tags", "origin"); e != nil {
+		return e
+	}
+	return runGitProgress(git, "-C", dir, "checkout", "--detach", "--force", tag)
+}
+
+func locatePackageRoot(root, wantVersion string) string {
+	candidates := []string{root}
+	entries, _ := os.ReadDir(root)
+	for _, e := range entries {
+		if e.IsDir() {
+			candidates = append(candidates, filepath.Join(root, e.Name()))
+		}
+	}
+	for _, c := range candidates {
+		b, err := os.ReadFile(filepath.Join(c, "VERSION"))
+		if err == nil && strings.TrimSpace(string(b)) == wantVersion {
+			if _, err := os.Stat(filepath.Join(c, "vek.exe")); err == nil {
+				return c
+			}
+		}
+	}
+	return ""
+}
+
+func copyFileAtomic(src, dst string, mode os.FileMode) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	tmp := dst + ".new"
+	_ = os.Remove(tmp)
+	if err := os.WriteFile(tmp, data, mode); err != nil {
+		return err
+	}
+	_ = os.Remove(dst)
+	return os.Rename(tmp, dst)
+}
+
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return os.MkdirAll(dst, 0755)
+		}
+		out := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(out, info.Mode().Perm())
+		}
+		return copyFileAtomic(path, out, info.Mode().Perm())
+	})
+}
+
+func downloadVerifiedReleaseZip(version, asset, dstDir string) (string, error) {
+	base := repoWebBase(configuredRepo()) + "/releases/download/v" + version + "/"
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return "", err
+	}
+	zipPath := filepath.Join(dstDir, asset)
+	sumPath := zipPath + ".sha256"
+	if err := downloadHTTPS(base+asset+".sha256", sumPath, 64*1024); err != nil {
+		return "", fmt.Errorf("release v%s exists as a tag but required asset %s.sha256 is missing: %w", version, asset, err)
+	}
+	if err := downloadHTTPS(base+asset, zipPath, maxBootstrapPackageBytes*4); err != nil {
+		return "", fmt.Errorf("release v%s exists as a tag but required asset %s is missing: %w", version, asset, err)
+	}
+	want, err := parseChecksumFile(sumPath)
+	if err != nil {
+		return "", err
+	}
+	got, err := fileSHA256(zipPath)
+	if err != nil {
+		return "", err
+	}
+	if !strings.EqualFold(want, got) {
+		return "", fmt.Errorf("SHA-256 mismatch for %s", asset)
+	}
+	return zipPath, nil
+}
+
+func installRuntimeRelease(version string) error {
+	asset := "VEK-v" + version + "-windows-x64.zip"
+	updates := filepath.Join(targetDir, "updates", "v"+version)
+	_ = os.RemoveAll(updates)
+	zipPath, err := downloadVerifiedReleaseZip(version, asset, updates)
+	if err != nil {
+		return err
+	}
+	extract := filepath.Join(updates, "extract")
+	_ = os.RemoveAll(extract)
+	if err := os.MkdirAll(extract, 0755); err != nil {
+		return err
+	}
+	if err := safeExtractZip(zipPath, extract); err != nil {
+		return err
+	}
+	pkg := locatePackageRoot(extract, version)
+	if pkg == "" {
+		return fmt.Errorf("release package does not contain VERSION=%s and vek.exe", version)
+	}
+
+	archive := filepath.Join(targetDir, "versions", "v"+version, "runtime")
+	_ = os.RemoveAll(archive)
+	if err := copyTree(pkg, archive); err != nil {
+		return fmt.Errorf("archive runtime: %w", err)
+	}
+
+	for _, d := range []string{"include", "lib", "docs", "examples"} {
+		_ = os.RemoveAll(filepath.Join(targetDir, d))
+		if st, e := os.Stat(filepath.Join(pkg, d)); e == nil && st.IsDir() {
+			if e := copyTree(filepath.Join(pkg, d), filepath.Join(targetDir, d)); e != nil {
+				return e
+			}
+		}
+	}
+	for _, name := range []string{"vek.exe", "vek.dll", "README.md", "LICENSE", "manifest.sha256", "VERSION", "INSTALL_PATH.cmd", "UNINSTALL_PATH.cmd"} {
+		from := filepath.Join(pkg, name)
+		if st, e := os.Stat(from); e == nil && !st.IsDir() {
+			mode := st.Mode().Perm()
+			if strings.HasSuffix(strings.ToLower(name), ".exe") {
+				mode = 0755
+			}
+			if e := copyFileAtomic(from, filepath.Join(targetDir, name), mode); e != nil {
+				return e
+			}
+		}
+	}
+	b, err := os.ReadFile(filepath.Join(targetDir, "VERSION"))
+	if err != nil || strings.TrimSpace(string(b)) != version {
+		return fmt.Errorf("installed VERSION does not match v%s", version)
+	}
+	return nil
 }
 
 func copyPackageFiles() error {
@@ -1530,6 +1714,9 @@ func main() {
 	}
 	runtime.LockOSThread()
 	policy = loadPolicy()
+	if bootstrapNote != "" {
+		detailLine = bootstrapNote + ". Create/publish the release assets or use the v3.0.1+ release workflow."
+	}
 	fontSmall = createFont(14, 400, "Consolas")
 	fontBody = createFont(17, 500, "Consolas")
 	fontButton = createFont(19, 700, "Consolas")

@@ -28,6 +28,6 @@ int main(){
     assert(!vm.LastError().empty());
     auto d=vm.LastDiagnostic();assert(d.domain==vek::DiagnosticDomain::Runtime);assert(!d.stack.empty());assert(d.stack.back().function=="inner");assert(d.line>0);
     auto tmp=std::filesystem::temp_directory_path()/"vek_27_crashlogs.txt";std::filesystem::remove(tmp);
-    auto& crash=vek::VekCrashHandler::Instance();crash.Install(tmp.string());crash.SetContext({"VEK","2.8.0","test","diagnostics","runtime_error.vek","manual smoke"});assert(crash.WriteManualCrash("test crash report",d.stack));assert(std::filesystem::exists(tmp));crash.Uninstall();
+    auto& crash=vek::VekCrashHandler::Instance();crash.Install(tmp.string());crash.SetContext({"VEK",VEK_VERSION_STRING,"test","diagnostics","runtime_error.vek","manual smoke"});assert(crash.WriteManualCrash("test crash report",d.stack));assert(std::filesystem::exists(tmp));crash.Uninstall();
     std::cout<<"VEK 2.7 diagnostics/debugger/crash tests: PASS\n";
 }

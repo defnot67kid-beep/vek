@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.22)
-project(VEK VERSION 3.0.0 LANGUAGES C CXX)
+
+# VERSION is the single source of truth for the VEK release number.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VEK_VERSION LIMIT_COUNT 1)
+string(STRIP "${VEK_VERSION}" VEK_VERSION)
+if(NOT VEK_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must contain a semantic version such as 3.0.1; got '${VEK_VERSION}'")
+endif()
+project(VEK VERSION ${VEK_VERSION} LANGUAGES C CXX)
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/vek/VekVersion.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/vek/VekVersion.h"
+    @ONLY)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -32,6 +44,7 @@ add_library(vek_runtime STATIC
     src/VekUiVirtualization.cpp
 )
 target_include_directories(vek_runtime PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 set_target_properties(vek_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON EXPORT_NAME Runtime)
@@ -41,6 +54,7 @@ if(VEK_BUILD_C_ABI)
     add_library(vek_c SHARED src/vek_c.cpp)
     target_link_libraries(vek_c PRIVATE VEK::Runtime)
     target_include_directories(vek_c PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
     target_compile_definitions(vek_c PRIVATE VEK_C_EXPORTS=1)
@@ -115,6 +129,11 @@ if(VEK_BUILD_TESTS)
     target_link_libraries(vek_ui_next_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_ui_next COMMAND vek_ui_next_tests)
 
+    add_executable(vek_version_system_tests tests/version_system_tests.cpp)
+    target_link_libraries(vek_version_system_tests PRIVATE VEK::Runtime)
+    target_compile_definitions(vek_version_system_tests PRIVATE VEK_EXPECTED_VERSION=\"${VEK_VERSION}\")
+    add_test(NAME vek_version_system COMMAND vek_version_system_tests)
+
     if(VEK_BUILD_C_ABI)
         add_executable(vek_c_api_tests tests/c_api_tests.c)
         target_link_libraries(vek_c_api_tests PRIVATE vek_c)
@@ -136,7 +155,8 @@ endif()
 if(WIN32 AND VEK_BUILD_CLI AND VEK_BUILD_INSTALLER)
   install(TARGETS vek_installer RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} PATTERN "VekVersion.h.in" EXCLUDE)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/vek/VekVersion.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/vek)
 install(EXPORT VEKTargets FILE VEKTargets.cmake NAMESPACE VEK:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VEK)
 
 # Files installed for relocatable/portable distributions.
