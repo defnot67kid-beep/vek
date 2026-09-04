@@ -277,6 +277,9 @@ theme "vek.modern.dark" {
   --border-subtle: #242a34; --border: #303744; --border-strong: #465063;
   --text-1: #f4f6f9; --text-2: #b5bdca; --text-3: #7f8999; --text-disabled: #5f6877;
   --accent: #5ca8ff; --accent-hover: #74b5ff; --accent-active: #438fdc; --accent-soft: #183455;
+  --vek-blue: #69a9ff; --vek-cyan: #59d6e8; --vek-teal: #58c7b5; --vek-green: #63cf8d; --vek-lime: #a7d968;
+  --vek-yellow: #f0c866; --vek-orange: #f39a61; --vek-red: #ef6b73; --vek-pink: #e67fbd; --vek-violet: #ad8cff;
+  --vek-grey-50: #f6f7f9; --vek-grey-100: #e7e9ed; --vek-grey-200: #cdd1d7; --vek-grey-300: #aeb4bd; --vek-grey-400: #8b929e; --vek-grey-500: #6d7480; --vek-grey-600: #555b65; --vek-grey-700: #3f444c; --vek-grey-800: #2b2f35; --vek-grey-900: #1a1d21;
   --success: #55c98a; --warning: #e6b45a; --danger: #ef6b73; --info: #6ea8fe;
   --focus: #86bdff; --selection: #234c78;
   --shadow: #00000088; --overlay: #05070acc;
@@ -294,6 +297,8 @@ theme "vek.modern.dark" {
   --popup-bg: #1a1f27; --tooltip-bg: #242b35; --table-zebra: #12161c;
   --scrollbar-track: #00000000; --scrollbar-thumb: #5d687966; --scrollbar-thumb-hover: #778396aa;
   --viewport-bg: #0b0e13; --viewport-vignette: #00000055;
+  --dock-bg: #0e1116; --dock-tab-bg: #181d24; --dock-tab-active: #252c36; --dock-handle: #46506388; --dock-zone: #5ca8ff33; --dock-zone-active: #5ca8ff77;
+  --shader-panel: vek.ui.frosted_glass; --shader-viewport: vek.ui.vignette;
 }
 
 theme "vek.modern.light" {
@@ -302,6 +307,9 @@ theme "vek.modern.light" {
   --border-subtle: #e4e8ee; --border: #d3d9e2; --border-strong: #aeb7c5;
   --text-1: #1b2029; --text-2: #4f5968; --text-3: #778293; --text-disabled: #a7afba;
   --accent: #1677d2; --accent-hover: #0f84ef; --accent-active: #0d64b2; --accent-soft: #dceeff;
+  --vek-blue: #297fd1; --vek-cyan: #168ba0; --vek-teal: #1c8d7b; --vek-green: #218c56; --vek-lime: #6d902a;
+  --vek-yellow: #9c7414; --vek-orange: #b65c24; --vek-red: #c8404b; --vek-pink: #b94b8f; --vek-violet: #7252bd;
+  --vek-grey-50: #f6f7f9; --vek-grey-100: #e7e9ed; --vek-grey-200: #cdd1d7; --vek-grey-300: #aeb4bd; --vek-grey-400: #8b929e; --vek-grey-500: #6d7480; --vek-grey-600: #555b65; --vek-grey-700: #3f444c; --vek-grey-800: #2b2f35; --vek-grey-900: #1a1d21;
   --success: #168854; --warning: #b57212; --danger: #c8404b; --info: #2c6dc2;
   --focus: #3b8eea; --selection: #d6eaff; --shadow: #1b243022; --overlay: #11182766;
   --space-1: 4; --space-2: 8; --space-3: 12; --space-4: 16; --space-5: 20; --space-6: 24; --space-8: 32;
@@ -318,6 +326,8 @@ theme "vek.modern.light" {
   --popup-bg: #ffffff; --tooltip-bg: #202631; --table-zebra: #f8f9fb;
   --scrollbar-track: #00000000; --scrollbar-thumb: #78839155; --scrollbar-thumb-hover: #68758799;
   --viewport-bg: #e9edf3; --viewport-vignette: #00000020;
+  --dock-bg: #eef1f5; --dock-tab-bg: #ffffff; --dock-tab-active: #e7ebf1; --dock-handle: #8893a055; --dock-zone: #1677d233; --dock-zone-active: #1677d277;
+  --shader-panel: vek.ui.frosted_glass; --shader-viewport: vek.ui.vignette;
 }
 )VEKCSS";
 }
@@ -327,7 +337,7 @@ std::string ModernUiComponentStyleSource() {
 style "root" { background: var(--bg-0); foreground: var(--text-1); font_size: var(--font-md); line_height: var(--line-normal); }
 style "window" { background: var(--bg-1); border: var(--border); border_width: 1; border_radius: var(--radius-lg); shadow_blur: var(--elevation-3-blur); shadow_color: var(--shadow); }
 style "modal" { background: var(--surface-raised); border: var(--border); border_width: 1; border_radius: var(--radius-xl); shadow_blur: var(--elevation-3-blur); shadow_color: var(--shadow); }
-style "panel" { background: var(--surface); border: var(--border-subtle); border_width: 1; border_radius: var(--radius-md); }
+style "panel" { background: var(--surface); border: var(--border-subtle); border_width: 1; border_radius: var(--radius-md); shader: var(--shader-panel); }
 style "card" { background: var(--surface-raised); border: var(--border-subtle); border_width: 1; border_radius: var(--radius-lg); shadow_blur: var(--elevation-1-blur); shadow_color: var(--shadow); }
 style "toolbar" { background: var(--bg-1); border: var(--border-subtle); border_width: 1; }
 style "status_bar" { background: var(--bg-1); foreground: var(--text-2); border: var(--border-subtle); border_width: 1; font_size: var(--font-sm); }
@@ -405,10 +415,10 @@ style "keybind" { background: var(--input-bg); foreground: var(--text-2); border
 style "color_picker" { background: var(--surface); border: var(--border); border_width: 1; border_radius: var(--radius-md); }
 
 style "scroll" { background: #00000000; }
-style "dock_space" { background: var(--bg-0); border: var(--border-subtle); }
-style "split_pane" { background: var(--bg-0); border: var(--border-subtle); }
+style "dock_space" { background: var(--dock-bg); border: var(--border-subtle); border_width: 1; shader: var(--shader-panel); }
+style "split_pane" { background: var(--dock-bg); border: var(--border-subtle); border_width: 1; }
 style "separator" { background: var(--border-subtle); }
-style "viewport" { background: var(--viewport-bg); border: var(--border); border_width: 1; border_radius: var(--radius-lg); shadow_blur: var(--elevation-1-blur); shadow_color: var(--shadow); }
+style "viewport" { background: var(--viewport-bg); border: var(--border); border_width: 1; border_radius: var(--radius-lg); shadow_blur: var(--elevation-1-blur); shadow_color: var(--shadow); shader: var(--shader-viewport); }
 style "viewport:focus-visible" { border: var(--focus); focus_ring_color: var(--focus); focus_ring_width: var(--focus-ring); }
 style "graph" { background: var(--bg-1); border: var(--border-subtle); border_width: 1; border_radius: var(--radius-md); accent: var(--accent); }
 style "timeline" { background: var(--bg-1); border: var(--border-subtle); border_width: 1; border_radius: var(--radius-md); accent: var(--accent); }

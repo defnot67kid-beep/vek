@@ -8,7 +8,7 @@
 
 int main() {
     vek::GuiFramework ui;
-    assert(std::string(vek::GuiFramework::ApiVersion) == "3.1");
+    assert(std::string(vek::GuiFramework::ApiVersion) == "3.3");
     ui.SetViewport({1000, 700, 1.5f, {10,20,10,20}});
 
     VekMap root;
@@ -68,7 +68,7 @@ int main() {
             return {version:ui_version(), count:ui_count(), rect:ui_rect("play")};
         }
     )VEK"));
-    auto result=vm.Call("main"); assert(result.Get("version").AsString()=="3.1"); assert(result.Get("count").AsNumber()==2); assert(result.Get("rect").IsMap());
+    auto result=vm.Call("main"); assert(result.Get("version").AsString()=="3.3"); assert(result.Get("count").AsNumber()==2); assert(result.Get("rect").IsMap());
 
-    std::cout << "VEK 3.1 Modern GUI Framework tests: PASS\n";
+    std::cout << "VEK 3.3 Modern GUI Framework tests: PASS\n";
 }

@@ -42,6 +42,9 @@ add_library(vek_runtime STATIC
     src/VekUiStyle.cpp
     src/VekUiCommands.cpp
     src/VekUiVirtualization.cpp
+    src/VekUiDocking.cpp
+    src/VekColorSystems.cpp
+    src/VekShaderSystems.cpp
 )
 target_include_directories(vek_runtime PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
@@ -136,6 +139,10 @@ if(VEK_BUILD_TESTS)
     add_executable(vek_camera_physics_v32_tests tests/camera_physics_v32_tests.cpp)
     target_link_libraries(vek_camera_physics_v32_tests PRIVATE VEK::Runtime)
     add_test(NAME vek_camera_physics_v32 COMMAND vek_camera_physics_v32_tests)
+
+    add_executable(vek_ui_platform_v33_tests tests/ui_platform_v33_tests.cpp)
+    target_link_libraries(vek_ui_platform_v33_tests PRIVATE VEK::Runtime)
+    add_test(NAME vek_ui_platform_v33 COMMAND vek_ui_platform_v33_tests)
 
     add_executable(vek_version_system_tests tests/version_system_tests.cpp)
     target_link_libraries(vek_version_system_tests PRIVATE VEK::Runtime)

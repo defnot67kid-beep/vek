@@ -1,5 +1,14 @@
 # VEK Version History
 
+## VEK 3.3.0 — Advanced dock, colors, shaders and UI reliability
+- Fixed clipping order and scroll-range clamping in the retained GUI draw/input pipeline.
+- Added a renderer-neutral advanced DockManager with close/open, pin, float, tab activation, split ratios, persisted layouts and drag/drop target geometry.
+- Added VEK color palette/helpers and CSS tokens.
+- Added safe shader/material descriptor APIs and built-in UI/viewport effect presets.
+- Added theme-aware dock handles/drop zones and shader metadata in `ui_draw_list`.
+- GUI API version is now 3.3.
+- Added the VEK 3.3 UI platform regression suite.
+
 ## VEK 3.1.0 — Modern UI visual/UX overhaul
 - Added built-in modern dark/light design-token themes and component token cascades.
 - Added real widget-type selectors and recursive `var(--token, fallback)` resolution.

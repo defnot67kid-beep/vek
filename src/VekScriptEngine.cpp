@@ -1,4 +1,6 @@
 #include <vek/VekScriptEngine.h>
+#include <vek/VekColorSystems.h>
+#include <vek/VekShaderSystems.h>
 
 #include <algorithm>
 #include <cctype>
@@ -363,6 +365,8 @@ const std::string&VekScriptEngine::LastError()const{return impl->lastError;}
 const std::string&VekScriptEngine::SourceName()const{return impl->sourceName;}
 
 void VekRegisterStandardLibrary(VekScriptEngine&e){
+    vek::VekRegisterColorLibrary(e);
+    vek::VekRegisterShaderDescriptorLibrary(e);
     e.RegisterNative("print",[](const std::vector<VekValue>&a){for(auto&v:a)std::cout<<v.AsString();return VekValue();});
     e.RegisterNative("println",[](const std::vector<VekValue>&a){for(std::size_t i=0;i<a.size();++i){if(i)std::cout<<" ";std::cout<<a[i].AsString();}std::cout<<"\n";return VekValue();});
     e.RegisterNative("type",[](const std::vector<VekValue>&a){if(a.empty()||a[0].IsNil())return VekValue("nil");if(a[0].IsNumber())return VekValue("number");if(a[0].IsBool())return VekValue("bool");if(a[0].IsString())return VekValue("string");if(a[0].IsArray())return VekValue("array");if(a[0].IsMap())return VekValue("map");return VekValue("unknown");});

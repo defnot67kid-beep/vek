@@ -10,6 +10,7 @@
 
 #include <vek/VekScriptEngine.h>
 #include <vek/VekUiStyle.h>
+#include <vek/VekUiDocking.h>
 
 namespace vek {
 
@@ -124,6 +125,8 @@ struct GuiVisualStyle {
     std::string fontFamily;
     std::string icon;
     std::string easing = "ease_out";
+    std::string shader;              // renderer-neutral shader/effect descriptor id
+    VekValue shaderParams = VekValue::Map();
     int zIndex = 0;
 };
 
@@ -285,7 +288,7 @@ struct GuiFrameStats {
 
 class GuiFramework {
 public:
-    static constexpr const char* ApiVersion = "3.1";
+    static constexpr const char* ApiVersion = "3.3";
     static constexpr std::size_t MaxNodes = 16384;
     static constexpr std::size_t MaxEvents = 4096;
     static constexpr std::size_t MaxAnimations = 2048;
@@ -331,6 +334,11 @@ public:
     const std::string& FocusedId() const { return focusedId_; }
     const std::string& HoveredId() const { return hoveredId_; }
 
+    // Advanced dock workspace state (VEK 3.3). The retained widget tree is not
+    // rewritten; dock state is an additive layout/UX layer that hosts may persist.
+    ui::DockManager& Docking() { return dockManager_; }
+    const ui::DockManager& Docking() const { return dockManager_; }
+
     bool StartAnimation(const GuiAnimation& animation, std::string* error = nullptr);
     bool StopAnimations(const std::string& nodeId, const std::string& property = {});
     void Step(double dtSeconds);
@@ -366,6 +374,7 @@ private:
     std::string activeTheme_;
     ui::StyleSheet styleSheet_;
     bool modernStyleEnabled_ = true;
+    ui::DockManager dockManager_;
     GuiViewport viewport_{};
     std::deque<GuiEvent> events_;
     std::vector<GuiAnimation> animations_;
