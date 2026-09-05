@@ -1,4 +1,5 @@
 #include <vek/VekScriptEngine.h>
+#include <vek/VekStdLibExtras.h>
 #include <vek/VekGameSystems.h>
 #include <vek/VekDiagnosticsSystems.h>
 
@@ -161,7 +162,7 @@ void maybeLaunchAutoUpdate(const fs::path& home) {
 static int runFile(const std::string& path) {
     vek::VekCrashHandler::Instance().SetStage("run:" + path);
     VekScriptEngine vm;
-    VekRegisterStandardLibrary(vm);
+    VekRegisterStandardLibrary(vm);vek::VekRegisterExtraStandardLibrary(vm);
     vek::VekRegisterGameplayLibrary(vm);
     if (!vm.LoadFile(path)) { std::cerr << vm.LastError() << "\n"; return 2; }
     if (!vm.HasFunction("main")) { std::cerr << "VEK: program has no fn main()\n"; return 3; }
@@ -181,7 +182,7 @@ static int checkFile(const std::string& path) {
 
 static int traceFile(const std::string& path) {
     vek::VekCrashHandler::Instance().SetStage("trace:" + path);
-    VekScriptEngine vm; VekRegisterStandardLibrary(vm); vek::VekRegisterGameplayLibrary(vm);
+    VekScriptEngine vm; VekRegisterStandardLibrary(vm);vek::VekRegisterExtraStandardLibrary(vm); vek::VekRegisterGameplayLibrary(vm);
     vek::VekDebugger debugger; debugger.Attach(true); debugger.SetTraceCapacity(4096); vm.SetDebugger(&debugger);
     if (!vm.LoadFile(path)) { std::cerr << vek::FormatDiagnostic(vm.LastDiagnostic(), true) << "\n"; return 2; }
     if (!vm.HasFunction("main")) { std::cerr << "VEK: program has no fn main()\n"; return 3; }
@@ -198,7 +199,7 @@ static int traceFile(const std::string& path) {
 }
 
 static int diagnoseFile(const std::string& path) {
-    VekScriptEngine vm; VekRegisterStandardLibrary(vm); vek::VekRegisterGameplayLibrary(vm);
+    VekScriptEngine vm; VekRegisterStandardLibrary(vm);vek::VekRegisterExtraStandardLibrary(vm); vek::VekRegisterGameplayLibrary(vm);
     if (!vm.LoadFile(path)) { std::cerr << vek::FormatDiagnostic(vm.LastDiagnostic(), true) << "\n"; return 2; }
     std::cout << "VEK diagnostics: parse/load OK\n";
     if (vm.HasFunction("main")) {
@@ -211,7 +212,7 @@ static int diagnoseFile(const std::string& path) {
 
 static int evalExpr(const std::string& expr) {
     VekScriptEngine vm;
-    VekRegisterStandardLibrary(vm);
+    VekRegisterStandardLibrary(vm);vek::VekRegisterExtraStandardLibrary(vm);
     vek::VekRegisterGameplayLibrary(vm);
     std::string src = "fn main(){ return " + expr + "; }";
     if (!vm.LoadSource(src, "<eval>")) { std::cerr << vm.LastError() << "\n"; return 2; }

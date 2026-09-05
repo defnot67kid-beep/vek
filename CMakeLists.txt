@@ -47,6 +47,13 @@ add_library(vek_runtime STATIC
     src/VekUiDocking.cpp
     src/VekColorSystems.cpp
     src/VekShaderSystems.cpp
+    src/VekStyleTokens.cpp
+    src/VekPhysicsMechanics.cpp
+    src/VekAerodynamics.cpp
+    src/VekWorldBuilding.cpp
+    src/VekRemoteSystems.cpp
+    src/VekHud.cpp
+    src/VekStdLibExtras.cpp
 )
 target_include_directories(vek_runtime PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
@@ -54,6 +61,13 @@ target_include_directories(vek_runtime PUBLIC
     $<INSTALL_INTERFACE:include>)
 set_target_properties(vek_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON EXPORT_NAME Runtime)
 add_library(VEK::Runtime ALIAS vek_runtime)
+
+# VekRemoteSystems uses std::thread and BSD/Winsock sockets.
+find_package(Threads REQUIRED)
+target_link_libraries(vek_runtime PUBLIC Threads::Threads)
+if(WIN32)
+    target_link_libraries(vek_runtime PUBLIC ws2_32)
+endif()
 
 if(VEK_BUILD_C_ABI)
     add_library(vek_c SHARED src/vek_c.cpp)
